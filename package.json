@@ -1,6 +1,6 @@
 {
   "name": "manus",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "iPhone の Web UI からキーボードレス Windows 機 (ROG Ally X 等) へキーボード/マウス/ゲームパッド入力を注入するリモート入力サービス",
   "type": "module",
   "main": "dist/server.js",
