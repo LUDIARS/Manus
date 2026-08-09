@@ -55,7 +55,7 @@ PC 側の最前面アプリを監視し、**アプリ (exe 名 / ブラウザ UR
 | URL は UIA の best-effort | ブラウザ拡張の導入を要求しない。タイトルだけでは URL が取れないため UIA を第一候補に |
 | プロファイルは JSON + 編集 UI | 「カスタム配置可能」要件。ファイル正本なので git/手編集とも共存できる |
 | PIN は平文保存しない | HARNESS §1。検証のみなので salt+SHA-256。初期設定は `npm run set-pin -- <pin>` |
-| bind は 0.0.0.0 (LAN) | iPhone から届くことが製品要件。loopback 縛りは適用外だが認可必須とセット |
+| bind は 127.0.0.1 (loopback) | 外部疎通は Cloudflare Tunnel が担う (Excubitor 等 CF 系サービスに合わせる)。サーバ自身は LAN/WAN に直接晒さない。cloudflared が localhost:5390 を ingress で叩く |
 
 ## 第 II 部 — 構成
 
@@ -95,7 +95,10 @@ public/                 静的 HTML/CSS (js は esbuild 出力、コミットし
 
 ### セキュリティ境界
 
-- LAN 内前提。認可は PIN → 短命トークン (24h) → WS ハンドシェイク / API Bearer。
+- サーバは loopback bind。外部からの到達は Cloudflare Tunnel (cloudflared) 経由のみで、
+  ingress 設定は CF ダッシュボード (neco 管理) が正本。tunnel は Cloudflare Access 等で
+  前段認可し得るが、Manus 自身も PIN 認可を必須とする (多層防御。tunnel だけに委ねない)。
+- 認可は PIN → 短命トークン (24h) → WS ハンドシェイク / API Bearer。
 - PIN 未設定なら起動を拒否 (fail-fast、無言で認可無し公開にしない)。
 - 注入コマンドはすべて schema 検証後にのみヘルパへ渡す。shell を経由しない。
 - 最前面情報 (exe/タイトル/URL) は認可済みクライアントにのみ配信 (無認可 WS には出さない)。

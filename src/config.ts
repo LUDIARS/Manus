@@ -5,7 +5,7 @@ import { z } from "zod";
 const ConfigSchema = z
   .object({
     port: z.number().int().min(1).max(65535).default(5390),
-    bind: z.string().default("0.0.0.0"),
+    bind: z.string().default("127.0.0.1"),
     foregroundPollMs: z.number().int().min(100).default(500),
     tokenTtlHours: z.number().int().min(1).default(24),
     helperDir: z.string().default("data/helper"),

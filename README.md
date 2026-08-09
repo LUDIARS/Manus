@@ -2,7 +2,8 @@
 
 iPhone のブラウザから、キーボードレスの Windows 機 (ROG Ally X 等) へ
 **キーボード / マウス / ショートカット入力** を注入するリモート入力サービス。
-iPhone を最大限活用し、インストール不要 (同一 Wi-Fi の URL を開くだけ) で使う。
+iPhone を最大限活用し、インストール不要 (公開 URL を開くだけ) で使う。
+サーバは loopback bind で、外部到達は Cloudflare Tunnel 経由 (他の CF 系サービスに合わせる)。
 
 ## 仕組み
 
@@ -29,4 +30,6 @@ npm run build
 npm run set-pin -- 123456      # PIN 必須 (未設定だと起動拒否)
 ```
 
-起動は Excubitor 経由 (code: `manus`, port 5390)。iPhone で `http://<PCのIP>:5390/`。
+起動は Excubitor 経由 (code: `manus`, port 5390, loopback bind)。
+iPhone からは Cloudflare Tunnel の公開 URL を開く (ingress 設定は CF ダッシュボード = neco 管理)。
+ローカル検証は `http://127.0.0.1:5390/`。
