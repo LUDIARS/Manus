@@ -1,0 +1,49 @@
+{
+  "name": "@ludiars/vestigium",
+  "version": "0.1.0",
+  "description": "LUDIARS サービス横断のログ収集ライブラリ (JSONL writer + 日次ローテーション + retention sweep + service SDK + standalone CLI)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./sdk": {
+      "types": "./dist/sdk/index.d.ts",
+      "default": "./dist/sdk/index.js"
+    },
+    "./reader": {
+      "types": "./dist/reader/index.d.ts",
+      "default": "./dist/reader/index.js"
+    }
+  },
+  "bin": {
+    "vestigium": "./dist/cli/vestigium.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "DESIGN.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LUDIARS/Vestigium.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "peerDependencies": {
+    "pino": "^9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "pino": {
+      "optional": true
+    }
+  },
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,14 @@
+# Manus — リモート入力サービス (iPhone → Windows キー/マウス/パッド注入)
+services:
+  - code: manus
+    name: Manus
+    tier: personal
+    project_code: manus
+    port: 5390
+    repo: LUDIARS/Manus
+    runtime: node
+    cwd: ${ARS_ROOT}/Manus
+    command: node dist/server.js
+    health:
+      type: http
+      url: http://localhost:5390/health

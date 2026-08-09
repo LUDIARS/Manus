@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Manus</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <!-- 左端切替バー: 素早く2回押すと次のペインへ -->
+    <nav id="switch-bar" class="switch-bar" aria-label="ペイン切替 (素早く2回)"></nav>
+
+    <main class="app">
+      <header class="topbar">
+        <span id="state-dot" class="state-dot" data-state="disconnected"></span>
+        <span id="pane-name" class="pane-name">キーボード</span>
+        <span class="hud">
+          <span class="hud-item">遅延 <b id="hud-last">–</b></span>
+          <span class="hud-item">平均 <b id="hud-avg">–</b></span>
+        </span>
+      </header>
+      <section id="pane-host" class="pane-host"></section>
+    </main>
+
+    <div id="pairing" class="pairing hidden">
+      <div class="pairing-card">
+        <h1>Manus</h1>
+        <p>PC に表示された PIN を入力してください</p>
+        <input id="pin-input" type="tel" inputmode="numeric" placeholder="PIN" maxlength="10" />
+        <button id="pin-submit" class="btn primary">ペアリング</button>
+        <p id="pin-error" class="error"></p>
+      </div>
+    </div>
+
+    <script type="module" src="/js/main.js"></script>
+  </body>
+</html>
