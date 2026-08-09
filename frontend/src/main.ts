@@ -1,11 +1,13 @@
 import { ManusClient, type ConnState } from "./client.js";
+import { buildFullKeyboardPane } from "./panes/fullkeyboard.js";
 import { buildKeyboardPane } from "./panes/keyboard.js";
 import { buildShortcutsPane } from "./panes/shortcuts.js";
 import { buildTouchpadPane } from "./panes/touchpad.js";
 import { Switcher } from "./switcher.js";
 
 const PANES = [
-  { id: "keyboard", label: "⌨", name: "キーボード" },
+  { id: "keyboard", label: "⌨", name: "テキスト入力" },
+  { id: "fullkey", label: "⌗", name: "フルキーボード" },
   { id: "touchpad", label: "🖱", name: "タッチパッド" },
   { id: "shortcuts", label: "★", name: "ショートカット" },
 ] as const;
@@ -40,6 +42,7 @@ function main(): void {
   const paneHost = el("pane-host");
   const builders: Record<string, () => HTMLElement> = {
     keyboard: () => buildKeyboardPane(client),
+    fullkey: () => buildFullKeyboardPane(client),
     touchpad: () => buildTouchpadPane(client),
     shortcuts: () => buildShortcutsPane(client),
   };

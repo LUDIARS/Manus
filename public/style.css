@@ -80,6 +80,52 @@ body { display: flex; }
 }
 .touch-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 
+/* --- フルキーボード: 16:9 横向き固定・中央揃え・画面向きに追従しない --- */
+.pane-fullkey { padding: 8px; gap: 8px; justify-content: center; align-items: center; }
+.fk-echo {
+  width: 100%; min-height: 34px; display: flex; flex-wrap: wrap; gap: 6px;
+  align-items: center; justify-content: center; padding: 2px 4px;
+}
+.fk-echo-chip {
+  font-size: 15px; font-variant-numeric: tabular-nums;
+  padding: 4px 10px; border-radius: 8px; background: var(--panel2); color: var(--fg);
+  opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s;
+}
+.fk-echo-chip.show { opacity: 1; transform: translateY(0); }
+.fk-echo-chip.fade { opacity: 0; transform: translateY(-4px); }
+
+/* 16:9 の枠を、幅・高さの入る方に合わせて最大化しつつ比率固定。中央に置く。
+   aspect-ratio + max-width/height で、縦持ちでも横持ちでも同じ向き・同じ比率を保つ。 */
+.fk-stage {
+  width: 100%; flex: 1; display: flex; align-items: center; justify-content: center;
+  min-height: 0; container-type: size;
+}
+.fk-board {
+  aspect-ratio: 16 / 9;
+  max-width: 100%; max-height: 100%;
+  /* 高さ基準でも幅基準でも溢れないよう両制約を課す */
+  width: min(100%, calc(100cqh * 16 / 9));
+  display: flex; flex-direction: column; gap: clamp(3px, 0.9cqw, 8px);
+  padding: clamp(4px, 1.2cqw, 12px);
+  background: var(--panel); border-radius: 12px;
+  container-type: size;
+}
+.fk-row { flex: 1; display: flex; gap: clamp(3px, 0.9cqw, 8px); }
+.fk-key {
+  flex-grow: 1; flex-basis: 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: none; border-radius: clamp(3px, 0.7cqw, 8px);
+  background: var(--panel2); color: var(--fg);
+  font-size: clamp(9px, 2.1cqw, 20px); line-height: 1.05;
+  padding: 0; cursor: pointer; user-select: none;
+}
+.fk-key:active, .fk-key.pressed { background: var(--accent); color: #fff; }
+.fk-mod { background: #2c3140; color: var(--muted); font-size: clamp(8px, 1.7cqw, 15px); }
+.fk-mod.held { background: var(--accent2); color: #fff; }
+.fk-sub { font-size: 0.62em; color: var(--muted); line-height: 1; }
+.fk-main { font-size: 1em; line-height: 1.1; }
+.fk-board.shifted .fk-sub { color: var(--accent); }
+
 .shortcut-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; overflow-y: auto; }
 .shortcut-btn {
   padding: 20px 8px; border-radius: 12px; border: none;
