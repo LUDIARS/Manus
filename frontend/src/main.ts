@@ -1,4 +1,5 @@
 import { ManusClient, type ConnState } from "./client.js";
+import { setupFullscreen } from "./fullscreen.js";
 import { buildFullKeyboardPane } from "./panes/fullkeyboard.js";
 import { buildKeyboardPane } from "./panes/keyboard.js";
 import { buildShortcutsPane } from "./panes/shortcuts.js";
@@ -67,7 +68,7 @@ function main(): void {
     (id) => showPane(id),
   );
 
-  const bar = el("switch-bar");
+  const bar = el("switch-items");
   for (const p of PANES) {
     const item = document.createElement("button");
     item.className = "switch-item";
@@ -88,6 +89,8 @@ function main(): void {
     el("hud-last").textContent = `${last}ms`;
     el("hud-avg").textContent = `${avg}ms`;
   };
+
+  setupFullscreen(el<"button">("fullscreen-btn"));
 
   showPane("keyboard");
 

@@ -24,9 +24,9 @@ body { display: flex; }
   width: var(--switch-w); flex: 0 0 var(--switch-w);
   background: var(--panel); border-right: 1px solid #0c0d10;
   display: flex; flex-direction: column; align-items: center;
-  padding-top: env(safe-area-inset-top); gap: 8px;
   padding-block: calc(env(safe-area-inset-top) + 12px) 12px;
 }
+.switch-items { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .switch-item {
   width: 44px; height: 44px; border-radius: 12px;
   border: none; background: var(--panel2); color: var(--muted);
@@ -48,6 +48,16 @@ body { display: flex; }
 .pane-name { font-weight: 600; }
 .hud { margin-left: auto; display: flex; gap: 10px; font-size: 12px; color: var(--muted); }
 .hud b { color: var(--fg); font-variant-numeric: tabular-nums; }
+/* フルスクリーンボタンは左端メニュー (switch-bar) の最下部に置く (neco 指示)。 */
+.fs-btn {
+  margin-top: auto; width: 44px; height: 44px; flex: 0 0 44px;
+  border: none; border-radius: 12px; background: var(--panel2); color: var(--muted);
+  font-size: 20px; line-height: 1; cursor: pointer;
+}
+.fs-btn.active { background: var(--accent); color: #fff; }
+.fs-btn.unsupported { opacity: 0.6; }
+.fs-btn.hint { animation: fs-hint 0.4s ease-in-out 3; }
+@keyframes fs-hint { 50% { background: var(--warn); color: #000; } }
 
 .pane-host { flex: 1; overflow: hidden; }
 .pane { height: 100%; display: flex; flex-direction: column; padding: 12px; gap: 12px; }
@@ -94,21 +104,24 @@ body { display: flex; }
 .fk-echo-chip.show { opacity: 1; transform: translateY(0); }
 .fk-echo-chip.fade { opacity: 0; transform: translateY(-4px); }
 
-/* 16:9 の枠を、幅・高さの入る方に合わせて最大化しつつ比率固定。中央に置く。
-   aspect-ratio + max-width/height で、縦持ちでも横持ちでも同じ向き・同じ比率を保つ。 */
+/* 19:10 の枠を、幅・高さの入る方に合わせて最大化しつつ比率固定。中央に置く。
+   aspect-ratio + max-width/height で、縦持ちでも横持ちでも同じ向き・同じ比率を保つ。
+   キーボード全体は必ず枠内に収め、スクロールを一切出さない (neco 指示)。 */
+.pane-fullkey { overflow: hidden; }
 .fk-stage {
   width: 100%; flex: 1; display: flex; align-items: center; justify-content: center;
-  min-height: 0; container-type: size;
+  min-height: 0; overflow: hidden; container-type: size;
 }
 .fk-board {
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 19 / 10;
   max-width: 100%; max-height: 100%;
   /* 高さ基準でも幅基準でも溢れないよう両制約を課す */
-  width: min(100%, calc(100cqh * 16 / 9));
-  display: flex; flex-direction: column; gap: clamp(3px, 0.9cqw, 8px);
-  padding: clamp(4px, 1.2cqw, 12px);
+  width: min(100%, calc(100cqh * 19 / 10));
+  /* キーは U 座標で absolute 配置 (物理配列の完全再現)。padding は持たない
+     (absolute の % は padding-box 基準のため、余白はキー側の inset で作る)。 */
+  position: relative; box-sizing: border-box;
   background: var(--panel); border-radius: 12px;
-  container-type: size;
+  overflow: hidden; container-type: size;
 }
 /* 端末が縦向きのときは、フルキーボードだけを 90 度回転して横向きに描画する
    (iPhone を縦に持ったまま横長キーボードを画面いっぱいに使う。neco 指示 2026-08-09)。
@@ -123,34 +136,42 @@ body { display: flex; }
     position: absolute;
     top: 50%;
     left: 50%;
-    /* 回転前: 幅=stage高さ, 高さ=stage幅。ただし 16:9 比率を保ったまま内接させる */
-    width: min(100cqh, 100cqw * 16 / 9);
-    height: min(100cqw, 100cqh * 9 / 16);
-    max-width: none;
-    aspect-ratio: 16 / 9;
+    /* 回転前: 幅=stage高さ, 高さ=stage幅。ただし 19:10 比率を保ったまま内接させる */
+    width: min(100cqh, 100cqw * 19 / 10);
+    height: min(100cqw, 100cqh * 10 / 19);
+    max-width: none; max-height: none;
+    aspect-ratio: 19 / 10;
     transform: translate(-50%, -50%) rotate(90deg);
     transform-origin: center center;
   }
 }
 
-.fk-row { flex: 1; display: flex; min-height: 0; }
-/* 段は メインブロック + 間隔 + ナビブロック の 3 分割。各ブロック内でキーを横並び。 */
-.fk-block { display: flex; gap: clamp(2px, 0.7cqw, 7px); min-width: 0; }
-.fk-block-gap { flex-shrink: 0; }
-.fk-main-block { margin-right: 0; }
-.fk-gap { flex-shrink: 0; }
+/* キーは JS が left/top/width/height を % で与える absolute 配置 (物理配列の完全再現)。
+   隣接キーの隙間は各キーを内側へ縮める inset で作る (座標は縮めず見た目だけ隙間)。 */
 .fk-key {
-  flex-grow: 1; flex-basis: 0; min-width: 0;
+  position: absolute;
+  box-sizing: border-box;
+  --gap: clamp(1px, 0.32cqw, 3.5px);
+  padding: var(--gap);
+  background-clip: content-box;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  border: none; border-radius: clamp(3px, 0.7cqw, 8px);
-  background: var(--panel2); color: var(--fg);
+  border: none; color: var(--fg);
   font-size: clamp(8px, 1.9cqw, 18px); line-height: 1.05;
-  padding: 0; cursor: pointer; user-select: none;
-  margin: 0 clamp(1px, 0.35cqw, 3.5px) 0 0;
+  cursor: pointer; user-select: none;
+  background-color: transparent;
 }
-.fk-block .fk-key:last-child { margin-right: 0; }
-.fk-key:active, .fk-key.pressed { background: var(--accent); color: #fff; }
-.fk-mod { background: #2c3140; color: var(--muted); font-size: clamp(8px, 1.7cqw, 15px); }
+/* content-box に背景色を敷き、padding 分が隙間になる。角丸は内側の疑似で表現。 */
+.fk-key::before {
+  content: ""; position: absolute; inset: var(--gap);
+  border-radius: clamp(3px, 0.7cqw, 8px); background: var(--panel2); z-index: -1;
+}
+.fk-key > * { position: relative; z-index: 1; }
+.fk-key:active::before, .fk-key.pressed::before { background: var(--accent); }
+.fk-key:active, .fk-key.pressed { color: #fff; }
+.fk-mod { color: var(--muted); font-size: clamp(8px, 1.7cqw, 15px); }
+.fk-mod::before { background: #2c3140; }
+.fk-mod.held::before { background: var(--accent2); }
+.fk-mod.held { color: #fff; }
 .fk-mod.held { background: var(--accent2); color: #fff; }
 .fk-sub { font-size: 0.62em; color: var(--muted); line-height: 1; }
 .fk-main { font-size: 1em; line-height: 1.1; }

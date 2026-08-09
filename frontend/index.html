@@ -9,8 +9,11 @@
     <link rel="stylesheet" href="/style.css?v=%HASH%" />
   </head>
   <body>
-    <!-- 左端切替バー: 素早く2回押すと次のペインへ -->
-    <nav id="switch-bar" class="switch-bar" aria-label="ペイン切替 (素早く2回)"></nav>
+    <!-- 左端切替バー: 素早く2回押すと次のペインへ。最下部にフルスクリーンボタン。 -->
+    <nav id="switch-bar" class="switch-bar" aria-label="ペイン切替 (素早く2回)">
+      <div id="switch-items" class="switch-items"></div>
+      <button id="fullscreen-btn" class="fs-btn" title="フルスクリーン" aria-label="フルスクリーン">⛶</button>
+    </nav>
 
     <main class="app">
       <header class="topbar">
