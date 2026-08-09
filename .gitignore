@@ -1,6 +1,9 @@
 node_modules/
 dist/
+# public/ はビルド生成物 (ソースは frontend/)
 public/js/
+public/index.html
+public/style.css
 data/
 logs/
 *.log

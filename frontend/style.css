@@ -110,6 +110,29 @@ body { display: flex; }
   background: var(--panel); border-radius: 12px;
   container-type: size;
 }
+/* 端末が縦向きのときは、フルキーボードだけを 90 度回転して横向きに描画する
+   (iPhone を縦に持ったまま横長キーボードを画面いっぱいに使う。neco 指示 2026-08-09)。
+   回転前の board は stage の「高さ×幅」を占め、rotate 後に stage 全体を埋める。 */
+@media (orientation: portrait) {
+  .pane-fullkey .fk-echo { display: none; } /* 縦持ちは面積優先でエコー行を畳む */
+  .fk-stage {
+    position: relative;
+    overflow: hidden;
+  }
+  .fk-board {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    /* 回転前: 幅=stage高さ, 高さ=stage幅。ただし 16:9 比率を保ったまま内接させる */
+    width: min(100cqh, 100cqw * 16 / 9);
+    height: min(100cqw, 100cqh * 9 / 16);
+    max-width: none;
+    aspect-ratio: 16 / 9;
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center center;
+  }
+}
+
 .fk-row { flex: 1; display: flex; gap: clamp(3px, 0.9cqw, 8px); }
 .fk-key {
   flex-grow: 1; flex-basis: 0; min-width: 0;
