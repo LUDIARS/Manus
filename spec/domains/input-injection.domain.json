@@ -1,0 +1,11 @@
+{
+  "name": "input-injection",
+  "description": "入力の注入。 遠隔から受けた操作を Windows の入力として送り込む。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "(^|/)src/inject/(?:.*/)?[^/]+$"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "remote-surface",
+  "description": "遠隔からの受口。 HTTP と WebSocket の経路、 CLI 入口。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "(^|/)src/http/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "(^|/)src/ws/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "(^|/)src/cli/(?:.*/)?[^/]+$"
+    }
+  ]
+}

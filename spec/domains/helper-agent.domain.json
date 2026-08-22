@@ -1,0 +1,11 @@
+{
+  "name": "helper-agent",
+  "description": "Windows 側の補助プロセス。 入力注入や権限を要する処理を担う常駐。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "(^|/)helper/(?:.*/)?[^/]+$"
+    }
+  ]
+}

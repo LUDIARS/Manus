@@ -1,0 +1,17 @@
+{
+  "name": "service-runtime",
+  "description": "プロセスとしての Manus。 起動と設定、 自動テスト。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "(^|/)src/(?:server|config)\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)src/[^/]+$"
+    },
+    {
+      "pathPattern": "(^|/)tests?/(?:.*/)?[^/]+$"
+    }
+  ]
+}

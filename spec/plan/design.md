@@ -34,7 +34,7 @@ PC 側の最前面アプリを監視し、**アプリ (exe 名 / ブラウザ UR
   ドライバ不在は明示エラー (§7.1 無言フォールバック禁止) とする。
 - フロントエンドは TS を esbuild で bundle した静的ページ (keyboard / touchpad /
   shortcuts / editor)。SPA フレームワーク不使用の理由: 各面が独立 1 画面で依存最小化が勝つ。
-- ログは `@ludiars/vestigium` (vendored `lib/vestigium`、file dep)。
+- ログは Node.js の標準 console 出力を使う。サービス固有のログ依存は持たない。
 
 ### 目的と重視点
 
@@ -61,7 +61,7 @@ PC 側の最前面アプリを監視し、**アプリ (exe 名 / ブラウザ UR
 
 ```
 src/
-  server.ts             エントリポイント (config → vestigium → helper → http+ws 配線)
+  server.ts             エントリポイント (config → helper → http+ws 配線)
   config.ts             manus.config.json ローダ (既定値ファイル・env override)
   http/static-server.ts  静的配信 + /health
   http/api.ts           /api/pair /api/profiles* の JSON API

@@ -1,0 +1,11 @@
+{
+  "name": "web-frontend",
+  "description": "ブラウザ側の画面。 iPhone から操作するためのパネル構成。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "(^|/)frontend/(?:.*/)?[^/]+$"
+    }
+  ]
+}

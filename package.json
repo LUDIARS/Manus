@@ -17,7 +17,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@ludiars/vestigium": "file:lib/vestigium",
     "ws": "^8.18.0",
     "zod": "^3.23.8"
   },
