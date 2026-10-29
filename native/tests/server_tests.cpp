@@ -297,3 +297,53 @@ TEST_CASE(stop_terminates_open_websockets) {
     ws->read(buffer, ec);
     CHECK(static_cast<bool>(ec));
 }
+
+TEST_CASE(permessage_deflate_is_never_negotiated) {
+    // Nothing is ever inflated on our side: an offered compression extension is declined.
+    Fixture f;
+    const std::string req =
+        "GET /ws?token=good HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n"
+        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n"
+        "Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits\r\n\r\n";
+    const std::string out = test::raw_exchange(f.server.port(), req, 1000ms);
+    CHECK(out.rfind("HTTP/1.1 101", 0) == 0);
+    CHECK(out.find("Sec-WebSocket-Extensions") == std::string::npos);
+    CHECK(out.find("permessage-deflate") == std::string::npos);
+}
+
+TEST_CASE(fragmented_message_over_limit_is_refused) {
+    // The limit applies to the reassembled message, not to each fragment.
+    Fixture f;
+    boost::asio::io_context io;
+    auto ws = ws_connect(io, f.server.port(), "/ws?token=good");
+    const std::string chunk(16 * 1024, 'f');
+    boost::system::error_code ec;
+    for (int i = 0; i < 4; ++i) ws->write_some(false, boost::asio::buffer(chunk), ec);  // 64 KiB so far
+    ws->write_some(true, boost::asio::buffer(std::string("x")), ec);                    // +1 byte
+    boost::beast::flat_buffer buffer;
+    ws->read(buffer, ec);
+    CHECK(ec == websocket::error::closed);
+    CHECK_EQ(ws->reason().code, std::uint16_t{1009});
+}
+
+TEST_CASE(websocket_idle_timeout_closes_a_dead_peer) {
+    transport::ServerLimits limits;
+    limits.ws_idle_timeout = 1s;
+    Fixture f(limits);
+    // A raw client that completes the handshake and then never answers pings.
+    const auto start = std::chrono::steady_clock::now();
+    const std::string out = test::raw_exchange(f.server.port(), upgrade("/ws?token=good"), 6000ms);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    CHECK(out.rfind("HTTP/1.1 101", 0) == 0);
+    CHECK(elapsed < 5000ms);  // closed by the server, not by the test deadline
+}
+
+TEST_CASE(slow_header_hits_the_request_deadline) {
+    transport::ServerLimits limits;
+    limits.first_request_timeout = 1s;
+    Fixture f(limits);
+    const auto start = std::chrono::steady_clock::now();
+    const std::string out = test::raw_exchange(f.server.port(), "GET /health HTTP/1.1\r\nHost: x\r\n", 5000ms);
+    CHECK(out.empty());
+    CHECK(std::chrono::steady_clock::now() - start < 4000ms);
+}

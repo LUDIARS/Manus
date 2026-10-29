@@ -4,7 +4,9 @@
 #include <string>
 #include <string_view>
 
+#include "inject/command.hpp"
 #include "inject/input_sink.hpp"
+#include "ws/protocol.hpp"
 
 namespace manus::ws {
 
@@ -22,6 +24,14 @@ public:
 private:
     inject::InputSink& sink_;
 };
+
+struct CommandResult {
+    std::optional<inject::InjectCommand> command;
+    std::string error;  // e.g. "unknown key name: <key>"
+};
+
+// session.ts toCommand: a validated message (not ping) -> the command to inject.
+CommandResult to_command(const ClientMessage& message);
 
 // Reply builders (JSON.stringify key order and number formatting).
 std::string pong_json(const std::optional<double>& seq);

@@ -54,7 +54,7 @@ Node のサーバ (`src/`) と C# の常駐ヘルパ (`helper/ManusInputHelper.c
 | `src/auth/pairing.ts` (`storePin`・ファイル) | `native/src/auth/pairing_store.{hpp,cpp}` | `data/pairing.json` / `data/session-secret` の形式は同一 |
 | `src/cli/set-pin.ts` | `native/src/app/cli.cpp` + `pairing_store` | `manus set-pin <pin>` |
 | `src/http/api.ts` | `native/src/http/api.{hpp,cpp}` | `/health`, `POST /api/pair` |
-| `src/http/static-server.ts` | `native/src/http/static_files.{hpp,cpp}`, `native/src/http/url.{hpp,cpp}` | `public/` 配信・MIME・ETag・no-store |
+| `src/http/static-server.ts` | `native/src/http/static_files.{hpp,cpp}` (パス規則・MIME・ETag の純関数), `native/src/http/static_server.{hpp,cpp}` (stat と応答), `native/src/http/url.{hpp,cpp}` | `public/` 配信・MIME・ETag・no-store |
 | Node `http` + `ws` (受け口) | `native/src/transport/` (`server`, `http_connection`, `ws_connection`, `connection_tracker`, `limits`) | Boost.Beast |
 | `src/ws/protocol.ts` (zod) | `native/src/ws/protocol.{hpp,cpp}` | 手書きの検証。zod と同じ受理条件 |
 | `src/ws/session.ts` | `native/src/ws/session.{hpp,cpp}` | ack / pong / error の JSON は同一 |
@@ -64,6 +64,7 @@ Node のサーバ (`src/`) と C# の常駐ヘルパ (`helper/ManusInputHelper.c
 | `helper/ManusInputHelper.cs` (入力列の組み立て) | `native/src/inject/input_plan.{hpp,cpp}` (OS 非依存) | Unicode 注入・拡張キー・修飾キーの順序・ホイール |
 | `helper/ManusInputHelper.cs` (`SendInput`) | `native/src/inject/win32_input_sink.{hpp,cpp}` (Windows のみ) | 非 Windows は `unavailable_input_sink` (helper=down) |
 | (ログ: Node の console。旧 `lib/vestigium`) | `native/src/log/` | console + Vestigium 形式の JSONL (`logs/manus/YYYY-MM-DD.jsonl`) |
+| (ファイル・環境変数の読み書き) | `native/src/platform/` (`file_read`: Lorica 課金付きの読み込み・一時ファイル + rename の書き込み、`environment`) | |
 | `scripts/helper-smoke.mjs` | なし (不要になった) | ヘルパが無い |
 | `scripts/build-frontend.mjs`, `frontend/`, `public/` | 移行しない | 画面 |
 
@@ -122,7 +123,71 @@ Node のサーバ (`src/`) と C# の常駐ヘルパ (`helper/ManusInputHelper.c
 | 入力イベント列 (`input_plan.cpp`) | 件数 × 大きさ (`checked_multiply`) |
 | URL のデコード (`url.cpp`) | デコード後の大きさ |
 
-## 4. ビルドとテスト
+## 4. Node 版と意図的に変えた挙動
+
+互換性テスト (`native/tests/golden_tests.cpp`) で差分として明記し、C++ 側の結果を検証している。
+
+| 入力 | Node | C++ | 理由 |
+|---|---|---|---|
+| `GET /..%2fpublic-evil/x.js` (public の兄弟ディレクトリ) | 200 で配信 | 403 | Node の `startsWith(publicRoot)` は区切りを見ない前方一致だった |
+| `key` = `constructor` / `__proto__` など | `Object.prototype` のメンバを VK として扱った | `inject_failed` (unknown key name) | 表に載った名前だけをキーとする |
+| text に単独のサロゲート (`"\ud800"`) | 受理 | `bad_message` | 不正な UTF-16。nlohmann_json が解析時に拒否 |
+| Int32 を超える移動量・ホイール量 | (C# ヘルパで失敗) | `inject_failed` (同じ文言) | ヘルパと同じ。golden の偽ヘルパは全部受けるため差分扱い |
+| WS の返信順 | ack が後続の pong に追い越されることがあった | 受信順に処理 | 画面は seq で照合しているので影響なし |
+| `bad_message` の message 本文 | zod / JSON.parse の文面 | C++ の文面 | 画面は表示しない。code と seq の有無は同じ |
+| `Sec-WebSocket-Version: 8` | 受理 | 400 | Beast は 13 のみ |
+| ETag の値 | mtime の小数部を含む 36 進 | 整数 ms の 36 進 | 形は同じ。no-store のため実害なし |
+| `MANUS_PORT` が数値でない・0 | listen が例外 (0 は空きポート) | 起動失敗 (1..65535 の整数のみ) | |
+| `data/session-secret` が 32 B 未満 | そのまま使用 | 起動失敗 | 短い鍵を使わない |
+
+## 5. テスト
+
+### 5.1 元の TS テストとの対応
+
+| TS (vitest) | C++ (ctest) |
+|---|---|
+| `src/auth/pairing.test.ts` 「PIN 未設定なら fail-fast する」 | `manus.pairing` `fails_fast_without_pin` |
+| 〃 「正しい PIN でトークンを発行し検証が通る」 | `manus.pairing` `correct_pin_issues_verifiable_token` |
+| 〃 「誤った PIN は拒否し、5 回でロックする」 | `manus.pairing` `wrong_pin_rejected_and_locks_after_five` |
+| 〃 「改竄トークンを拒否する」 | `manus.pairing` `tampered_token_rejected` |
+| 〃 「期限切れトークンを拒否する」 | `manus.pairing` `expired_token_rejected` |
+| `src/inject/jis-vk-map.test.ts` 「英字は ASCII 大文字の VK」 | `manus.jis_vk_map` `letters_are_ascii_uppercase_vk` |
+| 〃 「矢印・ファンクション・JIS 固有キーを持つ」 | `manus.jis_vk_map` `arrows_function_and_jis_keys` |
+| 〃 「VK が重複しない」 | `manus.jis_vk_map` `no_duplicate_vks_except_capslock_eisu` |
+| 〃 「未知キーは投げる」 | `manus.jis_vk_map` `unknown_key_has_no_vk` |
+| `src/inject/keyboard.test.ts` textCommand 「文字列をそのまま text op にする」 | `manus.keyboard` `text_command_keeps_the_string` |
+| 〃 keyCommand 「修飾キーを先頭に、対象キーを末尾に並べる」 | `manus.keyboard` `modifiers_first_key_last` |
+| 〃 「複数修飾は指定順で先頭に積む」 | `manus.keyboard` `multiple_modifiers_keep_their_order` |
+| 〃 「action を透過する」 | `manus.keyboard` `action_passes_through` |
+| 〃 「未知キー名は投げる」 | `manus.keyboard` `unknown_key_name_is_an_error` |
+| `spec/test/test-plan.md` ws/protocol (未実装だった) | `manus.protocol` |
+| `spec/test/test-plan.md` inject/keyboard の text→op (未実装だった) | `manus.keyboard` `text_plan_newline_tab_and_surrogates` |
+| (なし: C# ヘルパの入力列) | `manus.input_plan`、Windows のみ `manus.win32_input_sink` |
+
+追加: `manus.util` (Lorica 課金付き JSON・JS の数値表記・UTF)、`manus.url`、`manus.config`、`manus.log`、`manus.api`、
+`manus.session`、`manus.static_files`、`manus.server` (受け口の上限・期限・同時数)、`manus.app` (同一プロセスの結合)、
+`manus.golden` (Node 実装との互換性)。
+
+### 5.2 互換性テスト (golden)
+
+`native/tests/tools/record-golden.ts` が Node 実装 (src/) を直接動かして `native/tests/fixtures/golden/*.json` を作る
+(C# ヘルパは記録用の偽物に置き換え、HTTP は 127.0.0.1 の空きポート、ペアリングのファイルは一時ディレクトリ)。
+
+```sh
+npm ci --ignore-scripts
+npx tsx native/tests/tools/record-golden.ts
+ctest --test-dir native/build -R manus.golden --output-on-failure
+```
+
+### 5.3 本社 (Windows 実機)
+
+`pwsh -File native/tests/tools/honsha-check.ps1 [-Smoke]` — MSVC で警告をエラーにしてビルド、golden の再記録、
+ctest (SendInput を偽の関数に差し替えた `manus.win32_input_sink` を含む)、`-Smoke` で一時ディレクトリに
+set-pin して起動し `/health`・`/api/pair`・静的配信を確かめる (入力は注入しない)。
+実機での入力注入は `spec/test/test-plan.md` の「実経路」の手順 (iPhone からペアリング → メモ帳へ日本語入力・
+タッチパッド・遅延 HUD) を C++ 版で行う。ヘルパの kill → 再起動の項目はヘルパが無くなったため対象外。
+
+## 6. ビルド
 
 ```sh
 cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
@@ -132,5 +197,8 @@ ctest --test-dir native/build --output-on-failure
 
 依存の取得は FetchContent (URL + `URL_HASH SHA256`)。ローカルの取得済みソースを使うときは
 `-DFETCHCONTENT_SOURCE_DIR_BOOST=...` `-DFETCHCONTENT_SOURCE_DIR_JSON=...` `-DLORICA_SOURCE_DIR=...` を渡す。
+`-DMANUS_WARNINGS_AS_ERRORS=ON` で警告をエラーにする。
 
-`set-pin` は `native/build/bin/manus set-pin <4〜10桁の数字>` (作業ディレクトリ = リポのルート、または `--root <dir>`)。
+実行: `native/build/bin/manus [serve] [--root <dir>]` (既定の root は作業ディレクトリ = リポのルート)。
+`set-pin` は `native/build/bin/manus set-pin <4〜10桁の数字>`。Windows 以外では入力を注入できない
+(`/health` は helper=down、注入は `helper_down`)。

@@ -32,3 +32,5 @@ manus_add_test(protocol manus_core)
 manus_add_test(session manus_core)
 manus_add_test(app manus_app manus_boost)
 manus_add_test(static_files manus_core manus_io)
+# Compatibility with the Node implementation (fixtures/golden, made by tools/record-golden.ts).
+manus_add_test(golden manus_app manus_boost)

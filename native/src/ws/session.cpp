@@ -20,17 +20,14 @@ std::string with_seq(std::string head, const std::optional<double>& seq) {
     return head + "}";
 }
 
-struct CommandResult {
-    std::optional<inject::InjectCommand> command;
-    std::string error;
-};
-
 template <class... Ts>
 struct overloaded : Ts... {
     using Ts::operator()...;
 };
 template <class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
+
+}  // namespace
 
 // session.ts toCommand (ping is answered before this).
 CommandResult to_command(const ClientMessage& message) {
@@ -51,8 +48,6 @@ CommandResult to_command(const ClientMessage& message) {
         },
         message);
 }
-
-}  // namespace
 
 std::string pong_json(const std::optional<double>& seq) { return with_seq(R"({"type":"pong")", seq); }
 
