@@ -11,6 +11,8 @@ add_library(manus_core STATIC
   inject/keyboard.cpp
   inject/mouse.cpp
   inject/input_plan.cpp
+  ws/protocol.cpp
+  ws/session.cpp
   http/url.cpp
   http/api.cpp
   log/jsonl_record.cpp)

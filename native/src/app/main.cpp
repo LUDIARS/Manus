@@ -3,6 +3,7 @@
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,7 @@
 #include "app/manus_app.hpp"
 #include "auth/pairing_store.hpp"
 #include "config/config_loader.hpp"
+#include "inject/input_sink.hpp"
 #include "log/jsonl_logger.hpp"
 #include "platform/environment.hpp"
 #include "transport/server.hpp"
@@ -66,8 +68,13 @@ int run_service(const std::filesystem::path& root) {
         return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
     });
 
+    const std::unique_ptr<inject::InputSink> sink = inject::make_platform_input_sink();
+    if (!sink->available()) {
+        logger.warn("[manus] このプラットフォームでは入力を注入できません (helper down)。注入は helper_down で失敗します");
+    }
+
     asio::io_context io(1);
-    app::ManusApp application(false, pairing, logger);
+    app::ManusApp application(*sink, pairing, logger);
     transport::Server server(io, application, logger);
 
     boost::system::error_code ec;
@@ -82,7 +89,8 @@ int run_service(const std::filesystem::path& root) {
         logger.error("[fatal] listen に失敗しました (" + cfg.bind + ":" + std::to_string(cfg.port) + "): " + ec.message());
         return 1;
     }
-    logger.info("[manus] listening on http://" + cfg.bind + ":" + std::to_string(cfg.port) + " (helper down)");
+    logger.info("[manus] listening on http://" + cfg.bind + ":" + std::to_string(cfg.port) +
+                (sink->available() ? " (helper up)" : " (helper down)"));
 
     asio::signal_set signals(io, SIGINT, SIGTERM);
 #ifdef SIGBREAK

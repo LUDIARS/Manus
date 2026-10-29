@@ -28,3 +28,6 @@ if(WIN32)
   # SendInput replaced by a fake; runs on Windows only (本社).
   manus_add_test(win32_input_sink manus_core manus_io)
 endif()
+manus_add_test(protocol manus_core)
+manus_add_test(session manus_core)
+manus_add_test(app manus_app manus_boost)
