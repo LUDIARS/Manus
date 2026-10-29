@@ -12,6 +12,9 @@
     },
     {
       "pathPattern": "(^|/)src/cli/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "(^|/)native/src/transport/(?:.*/)?[^/]+$"
     }
   ]
 }

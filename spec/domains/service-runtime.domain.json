@@ -12,6 +12,12 @@
     },
     {
       "pathPattern": "(^|/)tests?/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "(^|/)native/CMakeLists\\.txt$"
+    },
+    {
+      "pathPattern": "(^|/)native/src/(?:app|config|log|util|platform)/(?:.*/)?[^/]+$"
     }
   ]
 }

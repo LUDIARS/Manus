@@ -1,0 +1,21 @@
+add_library(manus_test_main STATIC test_main.cpp)
+target_include_directories(manus_test_main PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+manus_target(manus_test_main)
+
+set(MANUS_FIXTURES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fixtures)
+
+# manus_add_test(<name> <libraries...>): tests/<name>_tests.cpp -> ctest "manus.<name>".
+function(manus_add_test name)
+  add_executable(manus_${name}_tests ${name}_tests.cpp)
+  target_link_libraries(manus_${name}_tests PRIVATE manus_test_main ${ARGN})
+  target_compile_definitions(manus_${name}_tests PRIVATE MANUS_FIXTURES_DIR="${MANUS_FIXTURES_DIR}")
+  manus_target(manus_${name}_tests)
+  add_test(NAME manus.${name} COMMAND manus_${name}_tests)
+  set_tests_properties(manus.${name} PROPERTIES TIMEOUT 120)
+endfunction()
+
+manus_add_test(util manus_core)
+manus_add_test(url manus_core)
+manus_add_test(config manus_core manus_io)
+manus_add_test(log manus_core manus_io)
+manus_add_test(server manus_app manus_boost)
