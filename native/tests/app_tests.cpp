@@ -11,6 +11,7 @@
 #include "auth/pairing.hpp"
 #include "fake_input_sink.hpp"
 #include "net_client.hpp"
+#include "temp_dir.hpp"
 #include "test_harness.hpp"
 
 using namespace manus;
@@ -24,7 +25,7 @@ struct AppFixture {
     AppFixture()
         : pairing(auth::StoredPin{kSalt, auth::hash_pin("123456", kSalt)}, std::string(32, '\x07'), 24,
                   [this] { return now; }),
-          app(sink, pairing, logger),
+          app(sink, pairing, logger, public_dir.path()),
           server(app, logger) {}
 
     std::int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -32,6 +33,7 @@ struct AppFixture {
                            .count();
     test::FakeInputSink sink;
     log::NullLogger logger;
+    test::TempDir public_dir;
     auth::Pairing pairing;
     app::ManusApp app;
     test::ServerThread server;
@@ -145,4 +147,54 @@ TEST_CASE(pair_lockout_over_http) {
     CHECK_EQ(test::exchange_one(f.server.port(), pair_request("123456"))->status, 429);
     f.now += 60'000;
     CHECK_EQ(test::exchange_one(f.server.port(), pair_request("123456"))->status, 200);
+}
+
+TEST_CASE(static_files_over_http) {
+    AppFixture f;
+    f.public_dir.write("index.html", "<!doctype html><title>Manus</title>");
+    f.public_dir.write("js/main.js", "export {};");
+    const std::string get_root = "GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n";
+    auto r = test::exchange_one(f.server.port(), get_root);
+    REQUIRE(r.has_value());
+    CHECK_EQ(r->status, 200);
+    CHECK_EQ(r->body, std::string("<!doctype html><title>Manus</title>"));
+    CHECK_EQ(test::header_of(*r, "content-type"), std::string("text/html; charset=utf-8"));
+    CHECK_EQ(test::header_of(*r, "cache-control"), std::string("no-store, no-cache, must-revalidate"));
+    const std::string etag = test::header_of(*r, "etag");
+
+    r = test::exchange_one(f.server.port(), "GET / HTTP/1.1\r\nHost: x\r\nIf-None-Match: " + etag +
+                                                "\r\nConnection: close\r\n\r\n");
+    REQUIRE(r.has_value());
+    CHECK_EQ(r->status, 304);
+    CHECK(r->body.empty());
+
+    // Any method falls back to static files, as in Node (POST / and GET /api/pair serve index.html).
+    r = test::exchange_one(f.server.port(), "POST /keyboard HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+    REQUIRE(r.has_value());
+    CHECK_EQ(r->status, 200);
+    r = test::exchange_one(f.server.port(), "GET /api/pair HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    REQUIRE(r.has_value());
+    CHECK_EQ(r->status, 200);
+
+    r = test::exchange_one(f.server.port(), "GET /js/main.js HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    REQUIRE(r.has_value());
+    CHECK_EQ(r->body, std::string("export {};"));
+    CHECK_EQ(test::header_of(*r, "content-type"), std::string("text/javascript; charset=utf-8"));
+
+    r = test::exchange_one(f.server.port(), "GET /..%2f..%2fetc/hosts.txt HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    REQUIRE(r.has_value());
+    CHECK_EQ(r->status, 403);
+    r = test::exchange_one(f.server.port(), "GET /nope.css HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    REQUIRE(r.has_value());
+    CHECK_EQ(r->status, 404);
+}
+
+TEST_CASE(head_sends_headers_only) {
+    AppFixture f;
+    f.public_dir.write("index.html", "0123456789");
+    const std::string out =
+        test::raw_exchange(f.server.port(), "HEAD / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
+    CHECK(out.rfind("HTTP/1.1 200", 0) == 0);
+    CHECK(out.find("Content-Length: 10\r\n") != std::string::npos);
+    CHECK(out.size() == out.find("\r\n\r\n") + 4);  // no body bytes
 }

@@ -15,6 +15,7 @@ add_library(manus_core STATIC
   ws/session.cpp
   http/url.cpp
   http/api.cpp
+  http/static_files.cpp
   log/jsonl_record.cpp)
 target_include_directories(manus_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(manus_core PUBLIC nlohmann_json::nlohmann_json Lorica::boundary OpenSSL::Crypto)
@@ -29,6 +30,7 @@ endif()
 add_library(manus_io STATIC
   auth/pairing_store.cpp
   config/config_loader.cpp
+  http/static_server.cpp
   log/jsonl_logger.cpp
   platform/environment.cpp
   platform/file_read.cpp

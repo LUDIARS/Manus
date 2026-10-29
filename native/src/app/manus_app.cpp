@@ -1,5 +1,6 @@
 #include "app/manus_app.hpp"
 
+#include "http/static_server.hpp"
 #include "http/url.hpp"
 #include "ws/session.hpp"
 
@@ -18,8 +19,9 @@ private:
 
 }  // namespace
 
-ManusApp::ManusApp(inject::InputSink& sink, auth::Pairing& pairing, log::Logger& logger)
-    : sink_(sink), pairing_(pairing), logger_(logger) {
+ManusApp::ManusApp(inject::InputSink& sink, auth::Pairing& pairing, log::Logger& logger,
+                   std::filesystem::path public_dir)
+    : sink_(sink), pairing_(pairing), logger_(logger), public_dir_(std::move(public_dir)) {
     api_.pairing = &pairing_;
 }
 
@@ -27,7 +29,7 @@ http::HttpReply ManusApp::handle_http(const http::HttpRequest& request) {
     api_.helper_up = sink_.available();
     const std::string pathname = http::request_pathname(request.target);
     if (auto reply = http::handle_api(request, pathname, api_)) return std::move(*reply);
-    return http::text_reply(404, "not found");
+    return http::serve_static(request, pathname, public_dir_, logger_);
 }
 
 std::unique_ptr<transport::MessageHandler> ManusApp::open_websocket(std::string_view target) {

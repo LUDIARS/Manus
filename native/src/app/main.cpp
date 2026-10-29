@@ -74,7 +74,7 @@ int run_service(const std::filesystem::path& root) {
     }
 
     asio::io_context io(1);
-    app::ManusApp application(*sink, pairing, logger);
+    app::ManusApp application(*sink, pairing, logger, root / "public");
     transport::Server server(io, application, logger);
 
     boost::system::error_code ec;

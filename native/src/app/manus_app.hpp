@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <memory>
 #include <string_view>
 
@@ -15,7 +16,7 @@ namespace manus::app {
 // (server.ts wiring: API first, then static files; /ws needs a valid token).
 class ManusApp final : public transport::RequestHandler {
 public:
-    ManusApp(inject::InputSink& sink, auth::Pairing& pairing, log::Logger& logger);
+    ManusApp(inject::InputSink& sink, auth::Pairing& pairing, log::Logger& logger, std::filesystem::path public_dir);
 
     http::HttpReply handle_http(const http::HttpRequest& request) override;
     // Session.authorize: a missing, empty or invalid ?token= closes with 4401.
@@ -25,6 +26,7 @@ private:
     inject::InputSink& sink_;
     auth::Pairing& pairing_;
     log::Logger& logger_;
+    std::filesystem::path public_dir_;
     http::ApiContext api_;
 };
 
