@@ -34,6 +34,14 @@ bool is_windows_device_name(std::string_view segment) {
     return false;
 }
 
+// A single, already validated segment (no separators, no ":") as a path; UTF-8 on every platform.
+std::filesystem::path utf8_path(std::string_view segment) {
+    std::u8string u8;
+    u8.reserve(segment.size());
+    for (const char c : segment) u8.push_back(static_cast<char8_t>(c));
+    return std::filesystem::path(u8);
+}
+
 }  // namespace
 
 std::string_view node_extname(std::string_view path) {
@@ -118,7 +126,7 @@ StaticTarget resolve_static_path(std::string_view pathname, const std::filesyste
     if (bad_name || segments.empty() || is_separator(decoded.back())) return {StaticKind::not_found, {}, {}};
 
     std::filesystem::path path = public_root;
-    for (const auto segment : segments) path /= std::filesystem::path(std::u8string(segment.begin(), segment.end()));
+    for (const auto segment : segments) path /= utf8_path(segment);
     return {StaticKind::file, path, mime_type_for(node_extname(segments.back()))};
 }
 

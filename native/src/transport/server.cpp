@@ -26,7 +26,7 @@ boost::system::error_code Server::listen(const tcp::endpoint& endpoint) {
     // SO_REUSEADDR on Windows would let another process take over the port.
     BOOL exclusive = TRUE;
     if (::setsockopt(acceptor_.native_handle(), SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
-                     reinterpret_cast<const char*>(&exclusive), sizeof exclusive) != 0) {
+                     reinterpret_cast<const char*>(&exclusive), static_cast<int>(sizeof exclusive)) != 0) {
         return boost::system::error_code(::WSAGetLastError(), boost::system::system_category());
     }
 #else

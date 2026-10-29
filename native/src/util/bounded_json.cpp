@@ -105,7 +105,7 @@ JsonParseResult parse_bounded_json(std::string_view text, const JsonLimits& limi
     BudgetedDomBuilder builder(decoded);
     bool ok = false;
     try {
-        ok = json::sax_parse(text.begin(), text.end(), &builder, json::input_format_t::json, true, false);
+        ok = json::sax_parse(text.data(), text.data() + text.size(), &builder, json::input_format_t::json, true, false);
     } catch (const std::exception& ex) {
         return {std::nullopt, ex.what()};
     }
