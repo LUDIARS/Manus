@@ -3,6 +3,8 @@ add_library(manus_core STATIC
   util/bounded_json.cpp
   util/js_number.cpp
   util/utf.cpp
+  crypto/crypto.cpp
+  auth/pairing.cpp
   config/config.cpp
   http/url.cpp
   http/api.cpp
@@ -13,6 +15,7 @@ manus_target(manus_core)
 
 # manus_io: adapters for files, environment, logs and the OS input API.
 add_library(manus_io STATIC
+  auth/pairing_store.cpp
   config/config_loader.cpp
   log/jsonl_logger.cpp
   platform/environment.cpp

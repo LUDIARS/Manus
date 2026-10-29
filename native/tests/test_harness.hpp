@@ -47,8 +47,8 @@ std::string describe_mismatch(const A& a, const B& b) {
 
 #define CHECK_EQ(a, b)                                                                                     \
     do {                                                                                                   \
-        const auto& manus_left = (a);                                                                      \
-        const auto& manus_right = (b);                                                                     \
+        const auto manus_left = (a);                                                                       \
+        const auto manus_right = (b);                                                                      \
         if (!(manus_left == manus_right)) {                                                                \
             ::manus::test::record_failure(__FILE__, __LINE__,                                              \
                                           "CHECK_EQ(" #a ", " #b ")\n" +                                   \

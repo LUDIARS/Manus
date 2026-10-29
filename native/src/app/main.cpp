@@ -1,3 +1,4 @@
+#include <chrono>
 #include <csignal>
 #include <exception>
 #include <filesystem>
@@ -11,6 +12,7 @@
 
 #include "app/cli.hpp"
 #include "app/manus_app.hpp"
+#include "auth/pairing_store.hpp"
 #include "config/config_loader.hpp"
 #include "log/jsonl_logger.hpp"
 #include "platform/environment.hpp"
@@ -34,6 +36,16 @@ std::filesystem::path logs_dir_for(const std::filesystem::path& root) {
     return root / "logs";
 }
 
+int run_set_pin(const std::filesystem::path& root, const std::string& pin) {
+    std::string error;
+    if (!auth::store_pin(root, pin, error)) {
+        std::cerr << error << std::endl;
+        return 1;
+    }
+    std::cout << "ペアリング PIN を設定しました。" << std::endl;
+    return 0;
+}
+
 int run_service(const std::filesystem::path& root) {
     log::JsonlLogger logger({"manus", logs_dir_for(root), 14, true, true});
     const auto loaded = config::load_config(root);
@@ -43,8 +55,19 @@ int run_service(const std::filesystem::path& root) {
     }
     const config::ManusConfig& cfg = *loaded.config;
 
+    // Fail fast without a PIN: never expose the injection surface unauthorised.
+    auto stored = auth::load_pairing(root);
+    if (!stored.pin) {
+        logger.error(stored.error);
+        return 1;
+    }
+    auth::Pairing pairing(std::move(*stored.pin), std::move(stored.secret), cfg.token_ttl_hours, [] {
+        using namespace std::chrono;
+        return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    });
+
     asio::io_context io(1);
-    app::ManusApp application(false, logger);
+    app::ManusApp application(false, pairing, logger);
     transport::Server server(io, application, logger);
 
     boost::system::error_code ec;
@@ -89,8 +112,7 @@ int main(int argc, char** argv) {
                 std::cerr << command.error << "\n" << app::usage_text();
                 return 1;
             case app::CommandKind::set_pin:
-                std::cerr << "set-pin is not available yet\n";
-                return 1;
+                return run_set_pin(resolve_root(command), command.pin);
             case app::CommandKind::serve:
                 return run_service(resolve_root(command));
         }

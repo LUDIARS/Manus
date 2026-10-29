@@ -3,6 +3,7 @@
 #include <memory>
 #include <string_view>
 
+#include "auth/pairing.hpp"
 #include "http/api.hpp"
 #include "log/logger.hpp"
 #include "transport/handler.hpp"
@@ -13,13 +14,14 @@ namespace manus::app {
 // (server.ts wiring: API first, then static files; /ws needs a valid token).
 class ManusApp final : public transport::RequestHandler {
 public:
-    ManusApp(bool helper_up, log::Logger& logger);
+    ManusApp(bool helper_up, auth::Pairing& pairing, log::Logger& logger);
 
     http::HttpReply handle_http(const http::HttpRequest& request) override;
     std::unique_ptr<transport::MessageHandler> open_websocket(std::string_view target) override;
 
 private:
     http::ApiContext api_;
+    auth::Pairing& pairing_;
     log::Logger& logger_;
 };
 

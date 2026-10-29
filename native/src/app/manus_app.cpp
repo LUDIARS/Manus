@@ -4,7 +4,10 @@
 
 namespace manus::app {
 
-ManusApp::ManusApp(bool helper_up, log::Logger& logger) : logger_(logger) { api_.helper_up = helper_up; }
+ManusApp::ManusApp(bool helper_up, auth::Pairing& pairing, log::Logger& logger) : pairing_(pairing), logger_(logger) {
+    api_.helper_up = helper_up;
+    api_.pairing = &pairing_;
+}
 
 http::HttpReply ManusApp::handle_http(const http::HttpRequest& request) {
     const std::string pathname = http::request_pathname(request.target);
