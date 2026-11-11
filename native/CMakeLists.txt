@@ -4,6 +4,11 @@ project(Manus VERSION 0.3.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+# compile_commands.json is what manus.lorica_applied.compile_commands reads (Ninja and
+# Makefile generators; Visual Studio writes none, and that test says so).
+if(PROJECT_IS_TOP_LEVEL)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
 
 include(FetchContent)
 include(CTest)
@@ -39,6 +44,12 @@ else()
     GIT_REPOSITORY https://github.com/LUDIARS/Lorica
     GIT_TAG 5e8281b0e60fa16f814e16eaa620715937e8618d)
   FetchContent_MakeAvailable(lorica)
+endif()
+# The Lorica tree in use (its tools/verify_binary.py runs in ctest).
+if(LORICA_SOURCE_DIR)
+  set(MANUS_LORICA_DIR "${LORICA_SOURCE_DIR}")
+else()
+  set(MANUS_LORICA_DIR "${lorica_SOURCE_DIR}")
 endif()
 
 add_library(manus_boost INTERFACE)
@@ -116,6 +127,8 @@ function(manus_target target)
     lorica_harden_target(${target} EXTENDED)
   endif()
   lorica_deprecate_unsafe_apis(${target})
+  # Read by manus.lorica_applied.compile_commands (tests/CMakeLists.txt).
+  set_property(GLOBAL APPEND PROPERTY MANUS_LORICA_TARGETS ${target})
 endfunction()
 
 add_subdirectory(src)
@@ -126,4 +139,8 @@ endif()
 # the libFuzzer binaries are built only with MANUS_BUILD_FUZZERS=ON.
 if(BUILD_TESTING OR MANUS_BUILD_FUZZERS)
   add_subdirectory(fuzz)
+endif()
+# After every target exists: what manus.lorica_applied.compile_commands expects.
+if(BUILD_TESTING)
+  manus_write_lorica_expectations()
 endif()

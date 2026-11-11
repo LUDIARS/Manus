@@ -218,6 +218,12 @@ Lorica の適用 (`native/CMakeLists.txt` の `manus_target()`): 全ビルド単
 EXTENDED に対応しない環境 (MSVC 19.44 未満・x64 以外など) では configure が Lorica の理由を出して失敗する。
 守りを外して通すことはせず、外すなら `-DMANUS_HARDEN_EXTENDED=OFF` を明示して baseline に戻す (人間の判断)。
 
+Lorica が実際に掛かっていることは ctest `manus.lorica_applied.*` が確かめる (ビルドが通っても外れていれば落ちる):
+`baseline` / `extended` (`tests/lorica_applied_tests.cpp` を `manus_target()` で 2 通りに作り、強制 include・
+`_GLIBCXX_ASSERTIONS` / `_LIBCPP_HARDENING_MODE`・最適化ありの `_FORTIFY_SOURCE=3`・`checked_add` / `input_budget` を翻訳単位の中から見る)、
+`compile_commands` (`tests/tools/check_lorica_compile_commands.cmake`、全 Manus の TU のコンパイルコマンドを照合。EXTENDED は `manus` の
+リンク先から決める。Visual Studio の generator では skip)、`binary` (`manus` に Lorica の `verify_binary.py`、python3 があるときだけ)。
+
 開発用の option (どれも既定 OFF・リリースには使わない。Lorica の守りは付いたまま):
 
 - `-DMANUS_SANITIZE=address,undefined` または `-DMANUS_SANITIZE=thread`: 全 Manus ターゲットに sanitizer を付ける

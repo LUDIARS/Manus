@@ -31,11 +31,18 @@
   `g++` と `clang++` の `-fsyntax-only -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Werror` が通る。
   これは構文と型の幅の確認だけで、Windows SDK・MSVC での確認ではない。
 
+- 追加 (COMMON-4 作業 B): ctest `manus.lorica_applied.{baseline,extended,compile_commands,binary}` の 4 本で、Lorica が実際に掛かって
+  いることをビルドの結果から見る (計 25 本、GCC RelWithDebInfo -Werror で 25/25)。わざと壊して落ちることを確かめた:
+  `lorica_deprecate_unsafe_apis` を外す → baseline・extended・compile_commands (60 TU を列挙) が落ちる。manus_io に
+  `-fcf-protection=none -U_FORTIFY_SOURCE` を足し manus_target() の EXTENDED の呼び出しを外す → compile_commands が落ちる。`manus_core` の SERVER を外す →
+  compile_commands が 18 TU を挙げて落ちる。MSVC の枝 (`/GS /sdl /guard:cf /we4996`、EXTENDED の `_MSVC_STL_HARDENING`) は未確認。
+
 ## (b) 確かめていないこと (本社で行う)
 
 - Windows (MSVC) のビルド・警告なし・EXTENDED (MSVC 19.44 以上)・`manus.win32_input_sink`・`manus.batch_dispatch`・実機での入力注入。
   手順: `pwsh -File native/tests/tools/honsha-check.ps1 [-Smoke]`。
 - MSVC の `-DMANUS_SANITIZE=address,undefined` (/fsanitize=address)。
+- `manus.lorica_applied.*` の MSVC の枝 (honsha-check.ps1 の ctest で走る。Visual Studio の generator では compile_commands は skip)。
 - GCC の TSan (`-Wno-error=tsan` にしたビルドでの ctest)。TSan の記録は Clang で取った。
 - golden の再記録 (Node 側は変えていない)。
 
@@ -125,7 +132,7 @@ cmake -S native -B native/build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DFETCHCONTENT_SOURCE_DIR_BOOST=/home/user/.cpp-deps/src/boost-1.87.0 \
   -DFETCHCONTENT_SOURCE_DIR_JSON=/home/user/.cpp-deps/src/nlohmann_json/json
 /home/user/.cpp-deps/bin/buildslot cmake --build native/build -j2
-/home/user/.cpp-deps/bin/buildslot ctest --test-dir native/build --output-on-failure   # 期待: 21/21
+/home/user/.cpp-deps/bin/buildslot ctest --test-dir native/build --output-on-failure   # 期待: 25/25
 python3 -I /home/user/Lorica/tools/verify_binary.py --readelf /usr/bin/readelf native/build/bin/manus
 ```
 
