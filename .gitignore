@@ -8,8 +8,10 @@ data/
 logs/
 *.log
 
-# Anatomia のローカル状態 (ドメイン定義の正本は spec/domains/)
-.anatomia/
+# Anatomia のローカル状態 (ドメイン定義の正本は spec/domains/)。
+# 層の宣言 (プログラムドメインの二層判定が読む) だけは追跡する。
+.anatomia/*
+!.anatomia/layers.json
 
 # C++ build output
 native/build/

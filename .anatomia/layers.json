@@ -1,0 +1,20 @@
+{
+  "$comment": "Anatomia のプログラムドメイン (二層判定) 用の層宣言。業務ドメインの正本は spec/domains/*.domain.json のまま。glob はリポ相対のファイルパスに完全一致で当たる (`*` = 1 階層)。Anatomia の module 単位はディレクトリなので、ディレクトリ 1 つに 1 本だけ置く。対象は C++ 版 (native/) のみ: 規則と純関数 (manus_core の大半) は domain、ファイル・ログ・OS の受け口は infrastructure、HTTP/WebSocket の受け口 (Boost.Beast) は presentation、組み立てと CLI は application、テストと fuzz は verification。Node 版 (src/ frontend/ helper/) は未宣言。確認は `anatomia domains program --repo . --unclassified`。",
+  "layers": [
+    { "glob": "native/fuzz/*", "layer": "verification" },
+    { "glob": "native/src/app/*", "layer": "application" },
+    { "glob": "native/src/auth/*", "layer": "domain" },
+    { "glob": "native/src/config/*", "layer": "domain" },
+    { "glob": "native/src/crypto/*", "layer": "domain" },
+    { "glob": "native/src/http/*", "layer": "domain" },
+    { "glob": "native/src/inject/*", "layer": "domain" },
+    { "glob": "native/src/log/*", "layer": "infrastructure" },
+    { "glob": "native/src/platform/*", "layer": "infrastructure" },
+    { "glob": "native/src/transport/*", "layer": "presentation" },
+    { "glob": "native/src/util/*", "layer": "domain" },
+    { "glob": "native/src/ws/*", "layer": "domain" },
+    { "glob": "native/tests/*", "layer": "verification" },
+    { "glob": "native/tests/tools/*", "layer": "verification" }
+  ],
+  "mergeCouplingThreshold": 1
+}
