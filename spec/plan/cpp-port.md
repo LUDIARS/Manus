@@ -38,7 +38,7 @@ Node のサーバ (`src/`) と C# の常駐ヘルパ (`helper/ManusInputHelper.c
 | Boost (Asio / Beast のヘッダのみ) | 1.87.0 `boost-1.87.0-b2-nodocs.zip` SHA256=`40efbb1f38b8cf186fd7bb12809f561ae1c233bae0f75146862e9bfce77d0d42` | HTTP/1.1・WebSocket・タイマ・シグナル | なし (Boost 内のヘッダのみ。ビルドしない) |
 | nlohmann_json | 3.11.3 `json.tar.xz` SHA256=`d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d` | JSON の解析・出力 | なし (ヘッダのみ) |
 | OpenSSL 3 (libcrypto のみ) | `find_package(OpenSSL 3 REQUIRED)` システム提供 | SHA-256・HMAC-SHA256・乱数・定数時間比較 | なし (libssl は使わない) |
-| Lorica | `LUDIARS/Lorica` commit `cab4f12086e30484f249d1b4aa479bf7cdec13a9` (`Lorica::boundary` + `lorica_harden_target`) | 入力の課金・ビルドの防御 | なし |
+| Lorica | `LUDIARS/Lorica` commit `5e8281b0e60fa16f814e16eaa620715937e8618d` (`Lorica::boundary` + `lorica_harden_target` (常駐サーバは EXTENDED) + `lorica_deprecate_unsafe_apis`) | 入力の課金・ビルドの防御 | なし |
 
 移行前の実行時の外部依存: Node.js ランタイム (+同梱部品十数個) + npm 2 + .NET Framework の csc/JavaScriptSerializer。
 移行後: Boost (ヘッダ) + nlohmann_json (ヘッダ) + OpenSSL libcrypto + Lorica の 4 つ (いずれも共通規約の許可表の範囲内)。
@@ -198,6 +198,12 @@ ctest --test-dir native/build --output-on-failure
 依存の取得は FetchContent (URL + `URL_HASH SHA256`)。ローカルの取得済みソースを使うときは
 `-DFETCHCONTENT_SOURCE_DIR_BOOST=...` `-DFETCHCONTENT_SOURCE_DIR_JSON=...` `-DLORICA_SOURCE_DIR=...` を渡す。
 `-DMANUS_WARNINGS_AS_ERRORS=ON` で警告をエラーにする。
+
+Lorica の適用 (`native/CMakeLists.txt` の `manus_target()`): 全ビルド単位に `Lorica::boundary` の link・
+`lorica_harden_target` (baseline)・`lorica_deprecate_unsafe_apis` を付ける。常駐サーバ (`manus` と
+`manus_core`/`manus_io`/`manus_transport`/`manus_app`) は `MANUS_HARDEN_EXTENDED=ON` (既定) で EXTENDED も付ける。
+EXTENDED に対応しない環境 (MSVC 19.44 未満・x64 以外など) では configure が Lorica の理由を出して失敗する。
+守りを外して通すことはせず、外すなら `-DMANUS_HARDEN_EXTENDED=OFF` を明示して baseline に戻す (人間の判断)。
 
 実行: `native/build/bin/manus [serve] [--root <dir>]` (既定の root は作業ディレクトリ = リポのルート)。
 `set-pin` は `native/build/bin/manus set-pin <4〜10桁の数字>`。Windows 以外では入力を注入できない

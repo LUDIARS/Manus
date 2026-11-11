@@ -64,10 +64,22 @@ else()
   endif()
 endif()
 
-# Every locally compiled target goes through this: warnings + Lorica hardening.
+# The resident server (the executable and the libraries holding its code) takes
+# Lorica's EXTENDED profile. An unsupported toolchain fails configuration with
+# Lorica's reason; turning this OFF is an explicit, reviewed decision.
+option(MANUS_HARDEN_EXTENDED "Apply Lorica's EXTENDED hardening to the resident server's targets" ON)
+
+# Every locally compiled target goes through this: warnings, Lorica's boundary
+# headers, Lorica's baseline hardening and its unsafe C API rejection.
+# manus_target(<target> [SERVER]): SERVER adds the EXTENDED profile.
 function(manus_target target)
-  target_link_libraries(${target} PRIVATE manus_warnings)
+  cmake_parse_arguments(PARSE_ARGV 1 arg "SERVER" "" "")
+  target_link_libraries(${target} PRIVATE manus_warnings Lorica::boundary)
   lorica_harden_target(${target})
+  if(arg_SERVER AND MANUS_HARDEN_EXTENDED)
+    lorica_harden_target(${target} EXTENDED)
+  endif()
+  lorica_deprecate_unsafe_apis(${target})
 endfunction()
 
 add_subdirectory(src)
