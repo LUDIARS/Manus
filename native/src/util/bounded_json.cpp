@@ -3,6 +3,7 @@
 #include <utility>
 #include <vector>
 
+#include <lorica/checked_size.hpp>
 #include <lorica/input_budget.hpp>
 
 namespace manus::util {
@@ -95,14 +96,21 @@ private:
 
 }  // namespace
 
-JsonParseResult parse_bounded_json(std::string_view text, const JsonLimits& limits) {
-    lorica::input_budget budget({limits.max_bytes, limits.max_elements, limits.max_elements, limits.max_depth});
+lorica::budget_limits json_budget_limits(const JsonLimits& limits) {
+    const auto bytes = lorica::checked_multiply(limits.max_bytes, 2);
+    const auto allocations = lorica::checked_add(limits.max_elements, 1);
+    if (!bytes || !allocations) return {0, 0, 0, 0};
+    return {*bytes, limits.max_elements, *allocations, limits.max_depth};
+}
+
+JsonParseResult parse_bounded_json(std::string_view text, const JsonLimits& limits, lorica::input_budget& budget) {
     // The raw text is charged before the parser allocates anything for it.
-    if (!budget.consume(text.size(), 0, 1)) return {std::nullopt, "JSON text is too large"};
-    // The decoded strings are charged again as they are produced, against the
-    // same byte allowance, so the expanded size is bounded too.
-    lorica::input_budget decoded({limits.max_bytes, limits.max_elements, limits.max_elements, limits.max_depth});
-    BudgetedDomBuilder builder(decoded);
+    if (text.size() > limits.max_bytes || !budget.consume(text.size(), 0, 1)) {
+        return {std::nullopt, "JSON text is too large"};
+    }
+    // The decoded strings and keys are charged again, against the same budget,
+    // as the SAX parser produces them, so the expanded size is bounded too.
+    BudgetedDomBuilder builder(budget);
     bool ok = false;
     try {
         ok = json::sax_parse(text.data(), text.data() + text.size(), &builder, json::input_format_t::json, true, false);
@@ -113,6 +121,11 @@ JsonParseResult parse_bounded_json(std::string_view text, const JsonLimits& limi
         return {std::nullopt, builder.error().empty() ? std::string("invalid JSON") : builder.error()};
     }
     return {builder.take(), {}};
+}
+
+JsonParseResult parse_bounded_json(std::string_view text, const JsonLimits& limits) {
+    lorica::input_budget budget(json_budget_limits(limits));
+    return parse_bounded_json(text, limits, budget);
 }
 
 }  // namespace manus::util

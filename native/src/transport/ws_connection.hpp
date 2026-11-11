@@ -29,6 +29,7 @@ private:
     void read();
     void on_read(boost::system::error_code ec);
     void on_write(boost::system::error_code ec);
+    void close_too_big();  // close 1009, as Beast does for a frame over read_message_max
     void terminate();
 
     std::shared_ptr<ServerContext> context_;  // declared first: destroyed last

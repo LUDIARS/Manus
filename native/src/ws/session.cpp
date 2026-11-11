@@ -1,5 +1,9 @@
 #include "ws/session.hpp"
 
+#include <cstddef>
+
+#include <lorica/byte_view.hpp>
+#include <lorica/input_budget.hpp>
 #include <nlohmann/json.hpp>
 
 #include "inject/input_plan.hpp"
@@ -58,7 +62,14 @@ std::string error_json(std::string_view code, std::string_view message, const st
 }
 
 std::optional<std::string> Session::on_message(std::string_view raw) {
-    const ParseResult parsed = parse_client_message(raw);
+    // One budget for this message, from admission to the parsed command. The
+    // transport already refuses frames over 64 KiB (close 1009); this check keeps
+    // the session safe on its own (fuzzing, other transports).
+    lorica::input_budget budget(message_budget_limits());
+    if (!lorica::byte_view::make(reinterpret_cast<const std::byte*>(raw.data()), raw.size(), kMessageLimits.max_bytes)) {
+        return error_json("bad_message", "message is too large", std::nullopt);
+    }
+    const ParseResult parsed = parse_client_message(raw, budget);
     if (!parsed.message) return error_json("bad_message", parsed.error, std::nullopt);
     const ClientMessage& message = *parsed.message;
     const auto seq = seq_of(message);

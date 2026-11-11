@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -30,6 +31,13 @@ struct PairResult {
 };
 
 inline constexpr int kMaxConsecutiveFailures = 5;
+
+// A PIN attempt longer than this is a wrong PIN without being hashed (a stored
+// PIN is 4..10 digits, so it can never match). It still counts as a failure.
+inline constexpr std::size_t kMaxPinAttemptBytes = 64;
+// Tokens this service issues are "<expiry ms, at most 18 digits>.<64 hex>"
+// (at most 83 bytes); anything longer is invalid without computing a MAC.
+inline constexpr std::size_t kMaxTokenBytes = 128;
 inline constexpr std::int64_t kLockMs = 60'000;
 
 using EpochMsClock = std::function<std::int64_t()>;

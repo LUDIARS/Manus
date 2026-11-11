@@ -223,3 +223,42 @@ TEST_CASE(pair_accepts_any_string_like_node) {
     CHECK(p.pair(std::string(4000, '9')).error == PairError::bad_pin);  // no format check at pair time
     CHECK(p.pair("").error == PairError::bad_pin);
 }
+
+TEST_CASE(pin_attempt_length_limit_exact_and_plus_one) {
+    TempDir dir;
+    set_pin(dir, "123456");
+    Pairing p = open_pairing(dir.path(), 24, fixed_clock());
+    // At the limit and past it, a wrong PIN is bad_pin either way (same reply as Node) ...
+    CHECK(p.pair(std::string(kMaxPinAttemptBytes, '9')).error == PairError::bad_pin);
+    CHECK(p.pair(std::string(kMaxPinAttemptBytes + 1, '9')).error == PairError::bad_pin);
+    // ... and an over-long attempt still counts towards the lock-out.
+    CHECK(p.pair(std::string(1024 * 1024, '9')).error == PairError::bad_pin);
+    CHECK(p.pair(std::string(kMaxPinAttemptBytes + 1, '9')).error == PairError::bad_pin);
+    CHECK(p.pair(std::string(kMaxPinAttemptBytes + 1, '9')).error == PairError::bad_pin);
+    CHECK(p.pair("123456").error == PairError::locked);
+}
+
+TEST_CASE(token_length_limit_exact_and_plus_one) {
+    TempDir dir;
+    set_pin(dir, "123456");
+    Pairing p = open_pairing(dir.path(), 24, fixed_clock());
+    const auto r = p.pair("123456");
+    REQUIRE(r.ok);
+    CHECK(r.token.size() <= kMaxTokenBytes);
+    CHECK(p.verify_token(r.token));
+    // A correctly signed token with a zero-padded expiry (still at most 18 digits) verifies;
+    // padded past the size limit, a correctly signed token is refused before any MAC work.
+    const std::string payload = r.token.substr(0, r.token.find('.'));
+    const std::string secret = load_pairing(dir.path()).secret;
+    const auto signed_token = [&](std::size_t zeros) {
+        const std::string padded = std::string(zeros, '0') + payload;
+        return padded + "." + manus::crypto::hmac_sha256_hex(secret, padded);
+    };
+    CHECK(p.verify_token(signed_token(18 - payload.size())));
+    const std::size_t room = kMaxTokenBytes - r.token.size();
+    CHECK_EQ(signed_token(room).size(), kMaxTokenBytes);
+    CHECK(!p.verify_token(signed_token(room)));  // exact size: shaped, but over 18 digits
+    CHECK_EQ(signed_token(room + 1).size(), kMaxTokenBytes + 1);
+    CHECK(!p.verify_token(signed_token(room + 1)));
+    CHECK(!p.verify_token(std::string(1024 * 1024, '1')));
+}

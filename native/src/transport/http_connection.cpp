@@ -1,10 +1,13 @@
 #include "transport/http_connection.hpp"
 
 #include <cctype>
+#include <cstddef>
 #include <string>
 
 #include <boost/beast/core/error.hpp>
 #include <boost/beast/http.hpp>
+#include <lorica/byte_view.hpp>
+#include <lorica/checked_size.hpp>
 #include <nlohmann/json.hpp>
 
 #include "http/url.hpp"
@@ -47,6 +50,14 @@ bool valid_websocket_key(beast::string_view key) {
     return true;
 }
 
+// The read buffer holds one request header and body plus slack for pipelined
+// bytes. Computed with an overflow check; on overflow only the header fits.
+std::size_t read_buffer_limit(const ServerLimits& limits) {
+    const auto with_body = lorica::checked_add(limits.header_limit, limits.body_limit);
+    const auto total = with_body ? lorica::checked_add(*with_body, 64 * 1024) : std::nullopt;
+    return total ? *total : limits.header_limit;
+}
+
 bool is_benign_close(const boost::system::error_code& ec) {
     return ec == bhttp::error::end_of_stream || ec == beast::error::timeout ||
            ec == boost::asio::error::operation_aborted || ec == boost::asio::error::eof ||
@@ -59,7 +70,7 @@ bool is_benign_close(const boost::system::error_code& ec) {
 HttpConnection::HttpConnection(tcp::socket socket, std::shared_ptr<ServerContext> context)
     : context_(std::move(context)),
       stream_(std::move(socket)),
-      buffer_(context_->limits.header_limit + context_->limits.body_limit + 64 * 1024) {}
+      buffer_(read_buffer_limit(context_->limits)) {}
 
 void HttpConnection::start() {
     std::weak_ptr<HttpConnection> weak = shared_from_this();
@@ -122,17 +133,19 @@ void HttpConnection::on_body(boost::system::error_code ec) {
 void HttpConnection::on_read_error(boost::system::error_code ec) {
     if (is_benign_close(ec)) return close_socket();
     if (ec == bhttp::error::header_limit) return send_status(431, true);
-    if (ec == bhttp::error::body_limit) {
-        const auto& req = parser_->get();
-        const std::string pathname = http::request_pathname(std::string_view(req.target().data(), req.target().size()));
-        if (req.method() == bhttp::verb::post && pathname == "/api/pair") {
-            // api.ts: readBody rejects past 4096 -> 400 bad_request.
-            return send_reply(http::json_reply(400, R"({"error":"bad_request"})"), true);
-        }
-        return send_reply(http::text_reply(413, "payload too large"), true);
-    }
+    if (ec == bhttp::error::body_limit) return refuse_body();
     // Malformed request: Node's default clientError handler answers 400 and closes.
     send_status(400, true);
+}
+
+void HttpConnection::refuse_body() {
+    const auto& req = parser_->get();
+    const std::string pathname = http::request_pathname(std::string_view(req.target().data(), req.target().size()));
+    if (req.method() == bhttp::verb::post && pathname == "/api/pair") {
+        // api.ts: readBody rejects past 4096 -> 400 bad_request.
+        return send_reply(http::json_reply(400, R"({"error":"bad_request"})"), true);
+    }
+    send_reply(http::text_reply(413, "payload too large"), true);
 }
 
 void HttpConnection::handle_request() {
@@ -144,6 +157,12 @@ void HttpConnection::handle_request() {
     view.method = std::string_view(method.data(), method.size());
     view.target = std::string_view(target.data(), target.size());
     view.body = req.body();
+    // Beast's body_limit already refused anything larger; the handlers only see
+    // a body whose range has been checked against the same limit.
+    if (!lorica::byte_view::make(reinterpret_cast<const std::byte*>(view.body.data()), view.body.size(),
+                                 context_->limits.body_limit)) {
+        return refuse_body();
+    }
     const auto inm = req.find(bhttp::field::if_none_match);
     if (inm != req.end()) view.if_none_match = std::string_view(inm->value().data(), inm->value().size());
 

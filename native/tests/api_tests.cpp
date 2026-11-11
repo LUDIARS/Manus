@@ -108,3 +108,14 @@ TEST_CASE(pair_body_json_limits) {
     many += "]}";
     CHECK_EQ(f.call("POST", "/api/pair", many)->status, 400u);  // more than 512 elements
 }
+
+TEST_CASE(pair_body_size_exact_and_plus_one) {
+    ApiFixture f;
+    const std::string head = R"({"pin":"000000","x":")";
+    std::string body = head + std::string(4096 - head.size() - 2, 'a') + "\"}";
+    REQUIRE(body.size() == 4096);
+    CHECK_EQ(f.call("POST", "/api/pair", body)->status, 401u);  // processed: wrong PIN
+    body.insert(head.size(), "a");
+    CHECK_EQ(f.call("POST", "/api/pair", body)->status, 400u);  // 4097 bytes: bad_request
+    CHECK_EQ(f.call("POST", "/api/pair", std::string(1024 * 1024, ' '))->status, 400u);
+}

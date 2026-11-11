@@ -155,8 +155,15 @@ ParseResult parse_ping(const json& obj) {
 
 }  // namespace
 
+lorica::budget_limits message_budget_limits() { return util::json_budget_limits(kMessageLimits); }
+
 ParseResult parse_client_message(std::string_view raw) {
-    auto parsed = util::parse_bounded_json(raw, kMessageLimits);
+    lorica::input_budget budget(message_budget_limits());
+    return parse_client_message(raw, budget);
+}
+
+ParseResult parse_client_message(std::string_view raw, lorica::input_budget& budget) {
+    auto parsed = util::parse_bounded_json(raw, kMessageLimits, budget);
     if (!parsed.value) return fail(parsed.error);
     const json& obj = *parsed.value;
     if (!obj.is_object()) return fail("Expected object");

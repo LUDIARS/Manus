@@ -1,9 +1,18 @@
 #include "auth/pairing.hpp"
 
+#include <cstddef>
+
+#include <lorica/byte_view.hpp>
+
 #include "crypto/crypto.hpp"
 
 namespace manus::auth {
 namespace {
+
+// Range check for an outside string before any work is done on it.
+bool fits(std::string_view text, std::size_t maximum) {
+    return lorica::byte_view::make(reinterpret_cast<const std::byte*>(text.data()), text.size(), maximum).has_value();
+}
 
 // The payload is always one this service signed: a plain decimal integer.
 bool parse_expiry(std::string_view payload, std::int64_t& out) {
@@ -41,8 +50,9 @@ Pairing::Pairing(StoredPin stored, std::string secret, std::int64_t ttl_hours, E
 
 PairResult Pairing::pair(std::string_view pin) {
     if (now_() < locked_until_) return {false, {}, PairError::locked};
-    const std::string attempt = hash_pin(pin, stored_.salt);
-    if (!crypto::constant_time_equal(attempt, stored_.pin_hash)) {
+    const bool matches = fits(pin, kMaxPinAttemptBytes) &&
+                         crypto::constant_time_equal(hash_pin(pin, stored_.salt), stored_.pin_hash);
+    if (!matches) {
         fail_count_ += 1;
         if (fail_count_ >= kMaxConsecutiveFailures) {
             locked_until_ = now_() + kLockMs;
@@ -60,6 +70,7 @@ std::string Pairing::issue_token() const {
 }
 
 bool Pairing::verify_token(std::string_view token) const {
+    if (!fits(token, kMaxTokenBytes)) return false;
     const std::size_t dot = token.find('.');
     if (dot == std::string_view::npos || dot == 0) return false;
     const std::string_view payload = token.substr(0, dot);

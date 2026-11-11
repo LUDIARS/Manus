@@ -6,6 +6,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "util/bounded_json.hpp"
+
 namespace manus::config {
 
 // manus.config.json (all keys optional). Same keys and defaults as src/config.ts.
@@ -20,6 +22,9 @@ struct ManusConfig {
 // Largest TTL whose expiry (ms since epoch) stays a safe JS integer, so tokens
 // keep the plain "<digits>.<hmac>" form the Node implementation produced.
 inline constexpr std::int64_t kMaxTokenTtlHours = 2'000'000'000;
+
+// manus.config.json is read with these limits (bytes before reading, then JSON).
+inline constexpr util::JsonLimits kConfigFileLimits{64 * 1024, 1024, 16};
 
 struct ConfigResult {
     std::optional<ManusConfig> config;

@@ -1,5 +1,9 @@
 #include "http/api.hpp"
 
+#include <cstddef>
+
+#include <lorica/byte_view.hpp>
+#include <lorica/input_budget.hpp>
 #include <nlohmann/json.hpp>
 
 #include "util/bounded_json.hpp"
@@ -17,7 +21,12 @@ HttpReply error_reply(unsigned status, const char* code) {
 }
 
 HttpReply handle_pair(const HttpRequest& request, auth::Pairing& pairing) {
-    const auto parsed = util::parse_bounded_json(request.body, kPairBodyLimits);
+    // One budget for this request: body admission, JSON, the PIN string.
+    lorica::input_budget budget(util::json_budget_limits(kPairBodyLimits));
+    const auto admitted = lorica::byte_view::make(reinterpret_cast<const std::byte*>(request.body.data()),
+                                                  request.body.size(), kPairBodyLimits.max_bytes);
+    if (!admitted) return error_reply(400, "bad_request");  // api.ts: over 4096 -> bad_request
+    const auto parsed = util::parse_bounded_json(request.body, kPairBodyLimits, budget);
     if (!parsed.value || !parsed.value->is_object()) return error_reply(400, "bad_request");
     const auto pin = parsed.value->find("pin");
     if (pin == parsed.value->end() || !pin->is_string()) return error_reply(400, "bad_request");

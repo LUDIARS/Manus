@@ -64,7 +64,14 @@ struct ParseResult {
     std::string error;  // when message is empty
 };
 
+// Parses one message with its own budget (json_budget_limits(kMessageLimits)).
 ParseResult parse_client_message(std::string_view raw);
+
+// Same, charging the budget of the message being handled (Session::on_message).
+ParseResult parse_client_message(std::string_view raw, lorica::input_budget& budget);
+
+// The budget for one WebSocket message: everything parse_client_message charges.
+lorica::budget_limits message_budget_limits();
 
 std::optional<double> seq_of(const ClientMessage& message);
 

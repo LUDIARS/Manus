@@ -32,6 +32,7 @@ private:
     void read_body();
     void on_body(boost::system::error_code ec);
     void on_read_error(boost::system::error_code ec);
+    void refuse_body();  // 400 bad_request for POST /api/pair, else 413; closes
     void handle_request();
     void handle_upgrade();
     void send_reply(http::HttpReply reply, bool close);

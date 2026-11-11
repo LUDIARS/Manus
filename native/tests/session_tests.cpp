@@ -100,3 +100,16 @@ TEST_CASE(error_message_is_json_escaped) {
     const std::string r = reply(s, R"({"type":"key","key":"a\"\\\n"})");
     CHECK_EQ(r, std::string(R"({"type":"error","code":"inject_failed","message":"unknown key name: a\"\\\n"})"));
 }
+
+TEST_CASE(message_size_is_admitted_exact_and_refused_plus_one) {
+    FakeInputSink sink;
+    Session s(sink);
+    // A ping padded with spaces to exactly 64 KiB is handled; one byte more is refused
+    // before parsing (the transport closes with 1009 first; this is the session's own check).
+    const std::string ping = R"({"type":"ping","seq":1})";
+    std::string exact = ping + std::string(64 * 1024 - ping.size(), ' ');
+    CHECK_EQ(reply(s, exact), std::string(R"({"type":"pong","seq":1})"));
+    exact.push_back(' ');
+    CHECK_EQ(reply(s, exact), std::string(R"({"type":"error","code":"bad_message","message":"message is too large"})"));
+    CHECK(sink.calls.empty());
+}

@@ -1,8 +1,11 @@
 #include "transport/ws_connection.hpp"
 
+#include <cstddef>
+#include <string_view>
+
 #include <boost/asio/buffer.hpp>
-#include <boost/beast/core/buffers_to_string.hpp>
 #include <boost/beast/websocket.hpp>
+#include <lorica/byte_view.hpp>
 
 namespace manus::transport {
 
@@ -30,6 +33,9 @@ void WsConnection::run(beast::http::request<beast::http::string_body> request) {
     timeouts.keep_alive_pings = true;
     ws_.set_option(timeouts);
     ws_.read_message_max(context_->limits.ws_message_limit);
+    // read_message_max bounds the receive buffer to one message. flat_buffer's own
+    // max_size is not set: Beast would then fail with buffer_overflow instead of
+    // closing with 1009 (manus.server websocket_message_limit_exact_and_plus_one).
     // No permessage-deflate (ws' server default is off as well): nothing is ever inflated.
     websocket::permessage_deflate deflate;
     deflate.server_enable = false;
@@ -61,16 +67,21 @@ void WsConnection::read() {
 
 void WsConnection::on_read(boost::system::error_code ec) {
     if (ec) return;  // closed by the peer, idle timeout, too big (1009), or terminated
-    const std::string message = beast::buffers_to_string(buffer_.data());
-    buffer_.consume(buffer_.size());
+    // flat_buffer is contiguous: the handler reads the message in place (no copy).
+    const auto data = buffer_.data();
+    const auto message = lorica::byte_view::make(static_cast<const std::byte*>(data.data()), data.size(),
+                                                 context_->limits.ws_message_limit);
+    if (!message) return close_too_big();
 
     std::optional<std::string> reply;
     try {
-        reply = handler_->on_message(message);
+        reply = handler_->on_message(std::string_view(static_cast<const char*>(data.data()), data.size()));
     } catch (const std::exception& ex) {
+        buffer_.consume(buffer_.size());
         context_->logger.error(std::string("[ws] ") + ex.what());
         return terminate();
     }
+    buffer_.consume(buffer_.size());
     if (!reply) return read();
     reply_ = std::move(*reply);
     ws_.text(true);
@@ -81,6 +92,12 @@ void WsConnection::on_read(boost::system::error_code ec) {
 void WsConnection::on_write(boost::system::error_code ec) {
     if (ec) return;
     read();
+}
+
+void WsConnection::close_too_big() {
+    buffer_.consume(buffer_.size());
+    websocket::close_reason reason(websocket::close_code::too_big);
+    ws_.async_close(reason, [self = shared_from_this()](boost::system::error_code) {});
 }
 
 void WsConnection::terminate() {

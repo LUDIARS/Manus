@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <string>
 
 #include "test_harness.hpp"
@@ -94,4 +95,35 @@ TEST_CASE(utf8_validation_rejects_overlong_and_surrogates) {
     CHECK(!manus::util::is_valid_utf8("\xED\xA0\x80"));      // U+D800
     CHECK(!manus::util::is_valid_utf8("\xF4\x90\x80\x80"));  // > U+10FFFF
     CHECK(!manus::util::is_valid_utf8("\xE3\x81"));          // truncated
+}
+
+TEST_CASE(bounded_json_charges_the_callers_request_budget) {
+    const JsonLimits limits{64, 8, 4};
+    const std::string doc = R"({"k":"0123456789"})";  // 18 raw bytes, 1 key + 1 string decoded (11 bytes)
+    lorica::input_budget budget(manus::util::json_budget_limits(limits));
+    CHECK_EQ(budget.remaining().bytes, std::size_t{128});
+    REQUIRE(parse_bounded_json(doc, limits, budget).value.has_value());
+    // raw 18 + decoded 11, 3 values (object, key, string), 1 + 3 allocations
+    CHECK_EQ(budget.remaining().bytes, std::size_t{128 - 18 - 11});
+    CHECK_EQ(budget.remaining().elements, std::size_t{8 - 3});
+    CHECK_EQ(budget.remaining().allocations, std::size_t{9 - 4});
+    // The same request budget runs out: a second document in one request is refused.
+    CHECK(parse_bounded_json(doc, limits, budget).value.has_value());
+    CHECK(!parse_bounded_json(doc, limits, budget).value.has_value());
+}
+
+TEST_CASE(bounded_json_raw_limit_is_checked_before_charging) {
+    const JsonLimits limits{17, 64, 8};
+    lorica::input_budget budget(manus::util::json_budget_limits(limits));
+    const auto r = parse_bounded_json(R"({"k":"0123456789"})", limits, budget);  // 18 bytes
+    CHECK(!r.value.has_value());
+    CHECK_EQ(r.error, std::string("JSON text is too large"));
+    CHECK_EQ(budget.remaining().bytes, std::size_t{34});
+}
+
+TEST_CASE(json_budget_limits_overflow_gives_an_empty_budget) {
+    const auto l = manus::util::json_budget_limits({SIZE_MAX, 4, 2});
+    CHECK_EQ(l.bytes, std::size_t{0});
+    CHECK_EQ(l.elements, std::size_t{0});
+    CHECK(!parse_bounded_json("1", {SIZE_MAX, 4, 2}).value.has_value());
 }

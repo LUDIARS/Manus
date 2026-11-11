@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 
+#include <lorica/input_budget.hpp>
 #include <nlohmann/json.hpp>
 
 namespace manus::util {
@@ -27,5 +28,16 @@ struct JsonParseResult {
 // charge that does not fit, so a hostile document never grows past the limits.
 // Duplicate keys keep the last value (same as JSON.parse).
 JsonParseResult parse_bounded_json(std::string_view text, const JsonLimits& limits);
+
+// The budget one JSON document needs: its raw text (at most max_bytes) plus the
+// decoded strings and keys (never more than the raw text), max_elements values,
+// one allocation for the text plus one per value, and max_depth nesting.
+// Sizes are computed with lorica::checked_*; an overflow yields an empty budget.
+lorica::budget_limits json_budget_limits(const JsonLimits& limits);
+
+// Same as above, charging the caller's budget for the request or message the
+// document belongs to (one budget from the start to the end of that request).
+// Text longer than limits.max_bytes is refused before anything is charged.
+JsonParseResult parse_bounded_json(std::string_view text, const JsonLimits& limits, lorica::input_budget& budget);
 
 }  // namespace manus::util
