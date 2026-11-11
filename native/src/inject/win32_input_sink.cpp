@@ -1,8 +1,9 @@
 #include "inject/win32_input_sink.hpp"
 
-#include <climits>
-#include <string>
+#include <cstdint>
 #include <vector>
+
+#include "inject/batch_dispatch.hpp"
 
 namespace manus::inject {
 namespace {
@@ -13,21 +14,22 @@ public:
 
     bool available() const override { return send_input_ != nullptr; }
 
+    // The rules around the call (empty plan, size limit, short count) live in
+    // dispatch_in_one_call and are tested on every platform; this adapter only
+    // converts the records and makes the one SendInput call.
     SinkResult send(const std::vector<InputEvent>& events) override {
-        if (events.empty()) return {true, {}};
-        if (events.size() > static_cast<std::size_t>(INT_MAX / sizeof(INPUT))) {
-            return {false, "too many input events for one message"};
-        }
-        std::vector<INPUT> inputs;
-        inputs.reserve(events.size());
-        for (const auto& e : events) inputs.push_back(to_win32_input(e));
-        const UINT total = static_cast<UINT>(inputs.size());
-        const UINT sent = send_input_(total, inputs.data(), static_cast<int>(sizeof(INPUT)));
-        if (sent != total) {
-            return {false, "SendInput injected " + std::to_string(sent) + "/" + std::to_string(total) +
-                               " (err=" + std::to_string(::GetLastError()) + ")"};
-        }
-        return {true, {}};
+        return dispatch_in_one_call(events, sizeof(INPUT), [this](const std::vector<InputEvent>& planned) {
+            std::vector<INPUT> inputs;
+            inputs.reserve(planned.size());
+            for (const auto& e : planned) inputs.push_back(to_win32_input(e));
+            // dispatch_in_one_call has checked count * sizeof(INPUT) <= INT_MAX.
+            const UINT sent =
+                send_input_(static_cast<UINT>(inputs.size()), inputs.data(), static_cast<int>(sizeof(INPUT)));
+            BatchOutcome outcome;
+            outcome.injected = static_cast<std::uint32_t>(sent);
+            if (sent != inputs.size()) outcome.last_error = static_cast<std::uint32_t>(::GetLastError());
+            return outcome;
+        });
     }
 
 private:
