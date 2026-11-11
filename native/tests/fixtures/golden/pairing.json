@@ -1,0 +1,170 @@
+{
+  "_note": "Node 実装 (src/) から native/tests/tools/record-golden.ts で生成。テスト専用の値 (PIN 123456、署名鍵はバイト列 0x00..0x1f) で、実データではない。",
+  "pin": "123456",
+  "salt": "71a54a610e0430c4a5b44646c019ab0c",
+  "pinHash": "5ec58091bbfd6bf331188b74fe0e54dfbd8d798a60a26c4e523ac8a2c44e192a",
+  "hashCheck": "5ec58091bbfd6bf331188b74fe0e54dfbd8d798a60a26c4e523ac8a2c44e192a",
+  "secretHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "ttlHours": 24,
+  "issuedAt": 1700000000000,
+  "token": "1700086400000.bee2b338a2e5f57b9ee54d6bb9cec73c5d4e9c79c262886b608df51144b8b4a6",
+  "verify": [
+    {
+      "token": "1700086400000.bee2b338a2e5f57b9ee54d6bb9cec73c5d4e9c79c262886b608df51144b8b4a6",
+      "now": 1700000000000,
+      "ok": true
+    },
+    {
+      "token": "1700086400000.bee2b338a2e5f57b9ee54d6bb9cec73c5d4e9c79c262886b608df51144b8b4a6",
+      "now": 1700086399999,
+      "ok": true
+    },
+    {
+      "token": "1700086400000.bee2b338a2e5f57b9ee54d6bb9cec73c5d4e9c79c262886b608df51144b8b4a6",
+      "now": 1700086400000,
+      "ok": false
+    },
+    {
+      "token": "1700000000000.bee2b338a2e5f57b9ee54d6bb9cec73c5d4e9c79c262886b608df51144b8b4a6",
+      "now": 1700000000000,
+      "ok": false
+    },
+    {
+      "token": "1700086400000.bee2b338a2e5f57b9ee54d6bb9cec73c5d4e9c79c262886b608df51144b8b4a6x",
+      "now": 1700000000000,
+      "ok": false
+    },
+    {
+      "token": "1700086400000.BEE2B338A2E5F57B9EE54D6BB9CEC73C5D4E9C79C262886B608DF51144B8B4A6",
+      "now": 1700000000000,
+      "ok": false
+    },
+    {
+      "token": ".bee2b338a2e5f57b9ee54d6bb9cec73c5d4e9c79c262886b608df51144b8b4a6",
+      "now": 1700000000000,
+      "ok": false
+    },
+    {
+      "token": "garbage",
+      "now": 1700000000000,
+      "ok": false
+    },
+    {
+      "token": "",
+      "now": 1700000000000,
+      "ok": false
+    }
+  ],
+  "lockSequence": [
+    {
+      "at": 1800000000000,
+      "pin": "000000",
+      "result": {
+        "ok": false,
+        "error": "bad_pin"
+      }
+    },
+    {
+      "at": 1800000000000,
+      "pin": "000000",
+      "result": {
+        "ok": false,
+        "error": "bad_pin"
+      }
+    },
+    {
+      "at": 1800000000000,
+      "pin": "000000",
+      "result": {
+        "ok": false,
+        "error": "bad_pin"
+      }
+    },
+    {
+      "at": 1800000000000,
+      "pin": "000000",
+      "result": {
+        "ok": false,
+        "error": "bad_pin"
+      }
+    },
+    {
+      "at": 1800000000000,
+      "pin": "123456",
+      "result": {
+        "ok": true
+      }
+    },
+    {
+      "at": 1800000000000,
+      "pin": "1",
+      "result": {
+        "ok": false,
+        "error": "bad_pin"
+      }
+    },
+    {
+      "at": 1800000000000,
+      "pin": "2",
+      "result": {
+        "ok": false,
+        "error": "bad_pin"
+      }
+    },
+    {
+      "at": 1800000000000,
+      "pin": "3",
+      "result": {
+        "ok": false,
+        "error": "bad_pin"
+      }
+    },
+    {
+      "at": 1800000000000,
+      "pin": "4",
+      "result": {
+        "ok": false,
+        "error": "bad_pin"
+      }
+    },
+    {
+      "at": 1800000000000,
+      "pin": "5",
+      "result": {
+        "ok": false,
+        "error": "bad_pin"
+      }
+    },
+    {
+      "at": 1800000000000,
+      "pin": "123456",
+      "result": {
+        "ok": false,
+        "error": "locked"
+      }
+    },
+    {
+      "at": 1800000059999,
+      "pin": "123456",
+      "result": {
+        "ok": false,
+        "error": "locked"
+      }
+    },
+    {
+      "at": 1800000060000,
+      "pin": "000000",
+      "result": {
+        "ok": false,
+        "error": "bad_pin"
+      }
+    },
+    {
+      "at": 1800000060000,
+      "pin": "123456",
+      "result": {
+        "ok": true
+      }
+    }
+  ]
+}

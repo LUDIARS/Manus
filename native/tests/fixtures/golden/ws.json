@@ -1,0 +1,81 @@
+{
+  "_note": "Node 実装 (src/) から native/tests/tools/record-golden.ts で生成。テスト専用の値 (PIN 123456、署名鍵はバイト列 0x00..0x1f) で、実データではない。",
+  "pin": "123456",
+  "cases": [
+    {
+      "name": "no_token",
+      "target": "/ws",
+      "messages": [],
+      "outcome": {
+        "opened": true,
+        "closeCode": 4401,
+        "replies": []
+      }
+    },
+    {
+      "name": "empty_token",
+      "target": "/ws?token=",
+      "messages": [],
+      "outcome": {
+        "opened": true,
+        "closeCode": 4401,
+        "replies": []
+      }
+    },
+    {
+      "name": "garbage_token",
+      "target": "/ws?token=garbage",
+      "messages": [],
+      "outcome": {
+        "opened": true,
+        "closeCode": 4401,
+        "replies": []
+      }
+    },
+    {
+      "name": "tampered_token",
+      "target": "/ws?token=<tampered>",
+      "messages": [],
+      "outcome": {
+        "opened": true,
+        "closeCode": 4401,
+        "replies": []
+      }
+    },
+    {
+      "name": "valid_token",
+      "target": "/ws?token=<token>",
+      "messages": [
+        "{\"type\":\"ping\",\"seq\":1}",
+        "{\"type\":\"key\",\"key\":\"c\",\"modifiers\":[\"ctrl\"],\"seq\":2}",
+        "not json",
+        "{\"type\":\"text\",\"text\":\"x\"}",
+        "{\"type\":\"ping\"}"
+      ],
+      "outcome": {
+        "opened": true,
+        "closeCode": 1000,
+        "replies": [
+          "{\"type\":\"pong\",\"seq\":1}",
+          "{\"type\":\"error\",\"code\":\"bad_message\",\"message\":\"Unexpected token 'o', \\\"not json\\\" is not valid JSON\"}",
+          "{\"type\":\"pong\"}",
+          "{\"type\":\"ack\",\"seq\":2}"
+        ]
+      }
+    },
+    {
+      "name": "valid_token_encoded",
+      "target": "/ws?a=1&token=<token-encoded>",
+      "messages": [
+        "{\"type\":\"ping\",\"seq\":3}"
+      ],
+      "outcome": {
+        "opened": true,
+        "closeCode": 1000,
+        "replies": [
+          "{\"type\":\"pong\",\"seq\":3}"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,146 @@
+cmake_minimum_required(VERSION 3.24)
+project(Manus VERSION 0.3.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+# compile_commands.json is what manus.lorica_applied.compile_commands reads (Ninja and
+# Makefile generators; Visual Studio writes none, and that test says so).
+if(PROJECT_IS_TOP_LEVEL)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
+
+include(FetchContent)
+include(CTest)
+
+option(MANUS_WARNINGS_AS_ERRORS "Treat compiler warnings in Manus sources as errors" OFF)
+
+find_package(OpenSSL 3 REQUIRED)
+find_package(Threads REQUIRED)
+
+# Dependencies are pinned by URL hash (same archives as Odeum/native). Pass
+# -DFETCHCONTENT_SOURCE_DIR_BOOST=<dir> / -DFETCHCONTENT_SOURCE_DIR_JSON=<dir> to use a local copy.
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+set(JSON_Install OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(json
+  URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+  URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d)
+# Header-only use of Asio/Beast: SOURCE_SUBDIR names a directory that does not exist,
+# so Boost's own CMake build is never configured.
+FetchContent_Declare(boost
+  URL https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-b2-nodocs.zip
+  URL_HASH SHA256=40efbb1f38b8cf186fd7bb12809f561ae1c233bae0f75146862e9bfce77d0d42
+  SOURCE_SUBDIR manus-header-only)
+FetchContent_MakeAvailable(json boost)
+
+# Lorica: a local checkout (LORICA_SOURCE_DIR) or the pinned commit.
+set(LORICA_SOURCE_DIR "" CACHE PATH "Local Lorica checkout; empty fetches the pinned commit")
+set(LORICA_BUILD_PROTECTION OFF CACHE BOOL "" FORCE)
+set(LORICA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+if(LORICA_SOURCE_DIR)
+  add_subdirectory(${LORICA_SOURCE_DIR} ${CMAKE_BINARY_DIR}/_deps/lorica-build EXCLUDE_FROM_ALL)
+else()
+  FetchContent_Declare(lorica
+    GIT_REPOSITORY https://github.com/LUDIARS/Lorica
+    GIT_TAG 5e8281b0e60fa16f814e16eaa620715937e8618d)
+  FetchContent_MakeAvailable(lorica)
+endif()
+# The Lorica tree in use (its tools/verify_binary.py runs in ctest).
+if(LORICA_SOURCE_DIR)
+  set(MANUS_LORICA_DIR "${LORICA_SOURCE_DIR}")
+else()
+  set(MANUS_LORICA_DIR "${lorica_SOURCE_DIR}")
+endif()
+
+add_library(manus_boost INTERFACE)
+target_include_directories(manus_boost SYSTEM INTERFACE ${boost_SOURCE_DIR})
+target_compile_definitions(manus_boost INTERFACE BOOST_ERROR_CODE_HEADER_ONLY BOOST_ASIO_NO_DEPRECATED)
+target_link_libraries(manus_boost INTERFACE Threads::Threads)
+if(WIN32)
+  target_link_libraries(manus_boost INTERFACE ws2_32 mswsock)
+endif()
+
+# Warning set applied to every Manus target (not to third-party headers, which are SYSTEM).
+add_library(manus_warnings INTERFACE)
+if(MSVC)
+  target_compile_options(manus_warnings INTERFACE /utf-8 /W4 /permissive- /external:W0)
+  target_compile_definitions(manus_warnings INTERFACE NOMINMAX WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0A00)
+  if(MANUS_WARNINGS_AS_ERRORS)
+    target_compile_options(manus_warnings INTERFACE /WX)
+  endif()
+else()
+  target_compile_options(manus_warnings INTERFACE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow)
+  if(MANUS_WARNINGS_AS_ERRORS)
+    target_compile_options(manus_warnings INTERFACE -Werror)
+  endif()
+endif()
+
+# The resident server (the executable and the libraries holding its code) takes
+# Lorica's EXTENDED profile. An unsupported toolchain fails configuration with
+# Lorica's reason; turning this OFF is an explicit, reviewed decision.
+option(MANUS_HARDEN_EXTENDED "Apply Lorica's EXTENDED hardening to the resident server's targets" ON)
+
+# Development builds only (never a release): sanitizers and libFuzzer instrumentation
+# for every Manus target. Lorica's hardening stays on in these builds.
+set(MANUS_SANITIZE "" CACHE STRING "Sanitizers for every Manus target: empty, address,undefined or thread")
+set_property(CACHE MANUS_SANITIZE PROPERTY STRINGS "" "address,undefined" "thread")
+option(MANUS_BUILD_FUZZERS "Build the libFuzzer entries in native/fuzz (Clang only)" OFF)
+
+add_library(manus_sanitize INTERFACE)
+if(MANUS_SANITIZE)
+  if(MSVC)
+    if(NOT MANUS_SANITIZE STREQUAL "address,undefined")
+      message(FATAL_ERROR "MSVC supports MANUS_SANITIZE=address,undefined only (AddressSanitizer; UBSan is not available)")
+    endif()
+    target_compile_options(manus_sanitize INTERFACE /fsanitize=address)
+  elseif(MANUS_SANITIZE STREQUAL "address,undefined" OR MANUS_SANITIZE STREQUAL "thread")
+    target_compile_options(manus_sanitize INTERFACE
+      -fsanitize=${MANUS_SANITIZE} -fno-omit-frame-pointer -fno-sanitize-recover=all)
+    target_link_options(manus_sanitize INTERFACE -fsanitize=${MANUS_SANITIZE})
+    if(MANUS_SANITIZE STREQUAL "thread" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      # GCC's -Wtsan fires on std::atomic_thread_fence inlined from Boost.Asio (TSan does
+      # not model fences). Keep it visible but not fatal; Clang is the TSan compiler of record.
+      target_compile_options(manus_sanitize INTERFACE -Wno-error=tsan)
+    endif()
+  else()
+    message(FATAL_ERROR "MANUS_SANITIZE must be empty, address,undefined or thread (got '${MANUS_SANITIZE}')")
+  endif()
+endif()
+if(MANUS_BUILD_FUZZERS)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR MSVC)
+    message(FATAL_ERROR "MANUS_BUILD_FUZZERS=ON needs Clang with libFuzzer (got ${CMAKE_CXX_COMPILER_ID})")
+  endif()
+  # Coverage instrumentation for every Manus target; only the fuzz entries link libFuzzer.
+  target_compile_options(manus_sanitize INTERFACE -fsanitize=fuzzer-no-link)
+  target_link_options(manus_sanitize INTERFACE -fsanitize=fuzzer-no-link)
+endif()
+
+# Every locally compiled target goes through this: warnings, Lorica's boundary
+# headers, Lorica's baseline hardening and its unsafe C API rejection (and, in
+# development builds, MANUS_SANITIZE / MANUS_BUILD_FUZZERS).
+# manus_target(<target> [SERVER]): SERVER adds the EXTENDED profile.
+function(manus_target target)
+  cmake_parse_arguments(PARSE_ARGV 1 arg "SERVER" "" "")
+  target_link_libraries(${target} PRIVATE manus_warnings manus_sanitize Lorica::boundary)
+  lorica_harden_target(${target})
+  if(arg_SERVER AND MANUS_HARDEN_EXTENDED)
+    lorica_harden_target(${target} EXTENDED)
+  endif()
+  lorica_deprecate_unsafe_apis(${target})
+  # Read by manus.lorica_applied.compile_commands (tests/CMakeLists.txt).
+  set_property(GLOBAL APPEND PROPERTY MANUS_LORICA_TARGETS ${target})
+endfunction()
+
+add_subdirectory(src)
+if(BUILD_TESTING)
+  add_subdirectory(tests)
+endif()
+# Fuzz entries: the regression runners join ctest with every compiler (BUILD_TESTING);
+# the libFuzzer binaries are built only with MANUS_BUILD_FUZZERS=ON.
+if(BUILD_TESTING OR MANUS_BUILD_FUZZERS)
+  add_subdirectory(fuzz)
+endif()
+# After every target exists: what manus.lorica_applied.compile_commands expects.
+if(BUILD_TESTING)
+  manus_write_lorica_expectations()
+endif()

@@ -1,4 +1,7 @@
 # Manus — リモート入力サービス (iPhone → Windows キー/マウス/パッド注入)
+# C++ 版 (native/、Windows 専用)。Excubitor に native 用 runtime は無いので runtime: node のまま
+# command に実行ファイルを書く。ビルド: cmake -S native -B native/build -A x64 && cmake --build native/build --config Release
+# data/pairing.json と data/session-secret は Node 版と同じ形式 (set-pin のやり直し不要)。
 services:
   - code: manus
     name: Manus
@@ -8,7 +11,7 @@ services:
     repo: LUDIARS/Manus
     runtime: node
     cwd: ${ARS_ROOT}/Manus
-    command: node dist/server.js
+    command: native/build/bin/manus.exe
     health:
       type: http
       url: http://localhost:5390/health

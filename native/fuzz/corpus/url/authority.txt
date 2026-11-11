@@ -1,0 +1,1 @@
+//host/a/./b/../c?x=%E3%81%82&token=%ZZ#frag
