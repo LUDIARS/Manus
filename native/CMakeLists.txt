@@ -69,12 +69,48 @@ endif()
 # Lorica's reason; turning this OFF is an explicit, reviewed decision.
 option(MANUS_HARDEN_EXTENDED "Apply Lorica's EXTENDED hardening to the resident server's targets" ON)
 
+# Development builds only (never a release): sanitizers and libFuzzer instrumentation
+# for every Manus target. Lorica's hardening stays on in these builds.
+set(MANUS_SANITIZE "" CACHE STRING "Sanitizers for every Manus target: empty, address,undefined or thread")
+set_property(CACHE MANUS_SANITIZE PROPERTY STRINGS "" "address,undefined" "thread")
+option(MANUS_BUILD_FUZZERS "Build the libFuzzer entries in native/fuzz (Clang only)" OFF)
+
+add_library(manus_sanitize INTERFACE)
+if(MANUS_SANITIZE)
+  if(MSVC)
+    if(NOT MANUS_SANITIZE STREQUAL "address,undefined")
+      message(FATAL_ERROR "MSVC supports MANUS_SANITIZE=address,undefined only (AddressSanitizer; UBSan is not available)")
+    endif()
+    target_compile_options(manus_sanitize INTERFACE /fsanitize=address)
+  elseif(MANUS_SANITIZE STREQUAL "address,undefined" OR MANUS_SANITIZE STREQUAL "thread")
+    target_compile_options(manus_sanitize INTERFACE
+      -fsanitize=${MANUS_SANITIZE} -fno-omit-frame-pointer -fno-sanitize-recover=all)
+    target_link_options(manus_sanitize INTERFACE -fsanitize=${MANUS_SANITIZE})
+    if(MANUS_SANITIZE STREQUAL "thread" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      # GCC's -Wtsan fires on std::atomic_thread_fence inlined from Boost.Asio (TSan does
+      # not model fences). Keep it visible but not fatal; Clang is the TSan compiler of record.
+      target_compile_options(manus_sanitize INTERFACE -Wno-error=tsan)
+    endif()
+  else()
+    message(FATAL_ERROR "MANUS_SANITIZE must be empty, address,undefined or thread (got '${MANUS_SANITIZE}')")
+  endif()
+endif()
+if(MANUS_BUILD_FUZZERS)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR MSVC)
+    message(FATAL_ERROR "MANUS_BUILD_FUZZERS=ON needs Clang with libFuzzer (got ${CMAKE_CXX_COMPILER_ID})")
+  endif()
+  # Coverage instrumentation for every Manus target; only the fuzz entries link libFuzzer.
+  target_compile_options(manus_sanitize INTERFACE -fsanitize=fuzzer-no-link)
+  target_link_options(manus_sanitize INTERFACE -fsanitize=fuzzer-no-link)
+endif()
+
 # Every locally compiled target goes through this: warnings, Lorica's boundary
-# headers, Lorica's baseline hardening and its unsafe C API rejection.
+# headers, Lorica's baseline hardening and its unsafe C API rejection (and, in
+# development builds, MANUS_SANITIZE / MANUS_BUILD_FUZZERS).
 # manus_target(<target> [SERVER]): SERVER adds the EXTENDED profile.
 function(manus_target target)
   cmake_parse_arguments(PARSE_ARGV 1 arg "SERVER" "" "")
-  target_link_libraries(${target} PRIVATE manus_warnings Lorica::boundary)
+  target_link_libraries(${target} PRIVATE manus_warnings manus_sanitize Lorica::boundary)
   lorica_harden_target(${target})
   if(arg_SERVER AND MANUS_HARDEN_EXTENDED)
     lorica_harden_target(${target} EXTENDED)
@@ -85,4 +121,9 @@ endfunction()
 add_subdirectory(src)
 if(BUILD_TESTING)
   add_subdirectory(tests)
+endif()
+# Fuzz entries: the regression runners join ctest with every compiler (BUILD_TESTING);
+# the libFuzzer binaries are built only with MANUS_BUILD_FUZZERS=ON.
+if(BUILD_TESTING OR MANUS_BUILD_FUZZERS)
+  add_subdirectory(fuzz)
 endif()
