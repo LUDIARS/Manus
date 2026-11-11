@@ -24,6 +24,8 @@ manus_add_test(api manus_core)
 manus_add_test(jis_vk_map manus_core)
 manus_add_test(keyboard manus_core)
 manus_add_test(input_plan manus_core)
+# The rules around the one SendInput call, with the call replaced by a fake (every platform).
+manus_add_test(batch_dispatch manus_core)
 if(WIN32)
   # SendInput replaced by a fake; runs on Windows only (本社).
   manus_add_test(win32_input_sink manus_core manus_io)
