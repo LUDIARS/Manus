@@ -111,17 +111,30 @@ Node のサーバ (`src/`) と C# の常駐ヘルパ (`helper/ManusInputHelper.c
 | 1 メッセージから作る入力イベント | 16384 件 | `inject_failed` |
 | `tokenTtlHours` | 1〜2,000,000,000 (JS の安全な整数の範囲) | 起動失敗 |
 
-### 3.3 Lorica の課金を入れた入力経路
+### 3.3 Lorica の上限チェックを入れた入力経路
 
-| 入力経路 | 課金 (`lorica::input_budget`) |
-|---|---|
-| WS メッセージ (`protocol.cpp`) | バイト・要素・確保・深さ (解析前にバイト、SAX で要素と深さ) |
-| `/api/pair` の本文 (`api.cpp`) | 同上 |
-| `manus.config.json` (`config_loader.cpp`) | ファイルの大きさ (読む前) + JSON |
-| `data/pairing.json` / `data/session-secret` (`pairing_store.cpp`) | ファイルの大きさ (読む前) + JSON |
-| 静的ファイル (`static_files.cpp`) | ファイルの大きさ (開く前) |
-| 入力イベント列 (`input_plan.cpp`) | 件数 × 大きさ (`checked_multiply`) |
-| URL のデコード (`url.cpp`) | デコード後の大きさ |
+1 依頼 (HTTP の 1 リクエスト・WS の 1 メッセージ) に `lorica::input_budget` を 1 つ持たせ、受け付けから JSON の解析まで同じ budget を使う。
+大きさは `lorica::byte_view::make` で上限と照合し、大きさの計算は `checked_multiply` / `checked_add` で行う。
+
+| 入力経路 | 場所 | 部品 | 上限 | 超えたとき |
+|---|---|---|---|---|
+| WS メッセージ (受け口) | `transport/ws_connection.cpp` | Beast `read_message_max` + `byte_view` | 64 KiB | close 1009 |
+| WS メッセージ (セッション・JSON) | `ws/session.cpp` → `ws/protocol.cpp` → `util/bounded_json.cpp` | `input_budget` (1 メッセージ 1 つ) + `byte_view` | 64 KiB・要素 1024・深さ 8 | `bad_message` |
+| JSON の budget の大きさ | `util/bounded_json.cpp` (`json_budget_limits`) | `checked_multiply` / `checked_add` | 生 + 展開後 = 2 × 上限 | (計算が溢れたら解析しない) |
+| HTTP の本文 (受け口) | `transport/http_connection.cpp` | Beast `body_limit` + `byte_view` | 4096 B | `/api/pair` は 400、ほかは 413 |
+| HTTP の読み取りバッファ | `transport/http_connection.cpp` | `checked_add` | ヘッダ 16 KiB + 本文 + 64 KiB | — |
+| `POST /api/pair` の本文 | `http/api.cpp` | `input_budget` (1 依頼 1 つ) + `byte_view` | 4096 B・要素 512・深さ 32 | 400 `bad_request` |
+| PIN の試行 | `auth/pairing.cpp` | `byte_view` | 64 B (保存される PIN は 4〜10 桁) | ハッシュせず `bad_pin` (ロックの数には入る) |
+| セッショントークン | `auth/pairing.cpp` (`verify_token`) | `byte_view` | 128 B (発行するトークンは最大 83 B) | MAC を計算せず無効 |
+| URL のデコード | `http/url.cpp` | `input_budget` | デコード後の大きさ (入力の大きさまで) | デコードを失敗にする |
+| `manus.config.json` | `platform/file_read.cpp`、`config/config.hpp` (`kConfigFileLimits`) | `input_budget` | 64 KiB・要素 1024・深さ 16 | 起動失敗 |
+| `data/pairing.json` / `data/session-secret` | `auth/pairing_store.cpp` | `input_budget` | 64 KiB / 32〜4096 B | 起動失敗 |
+| 静的ファイル | `http/static_server.cpp` | `input_budget` | 64 MiB | 500 |
+| 入力イベント列 | `inject/input_plan.cpp` | `checked_multiply` + `input_budget` | 16384 件 | `inject_failed` |
+| SendInput の 1 回の呼び出し | `inject/batch_dispatch.cpp` (Windows の `win32_input_sink.cpp` が使う) | `checked_multiply` | 件数 × `sizeof(INPUT)` ≤ `INT_MAX` | `inject_failed` (呼ばない) |
+
+境界テスト (上限ちょうど・+1・壊れた入力・巨大な入力) は `manus.util` `manus.session` `manus.pairing` `manus.api` `manus.server`
+`manus.batch_dispatch` にある。fuzz の入口は `native/fuzz/` (6 章)。
 
 ## 4. Node 版と意図的に変えた挙動
 
@@ -204,6 +217,24 @@ Lorica の適用 (`native/CMakeLists.txt` の `manus_target()`): 全ビルド単
 `manus_core`/`manus_io`/`manus_transport`/`manus_app`) は `MANUS_HARDEN_EXTENDED=ON` (既定) で EXTENDED も付ける。
 EXTENDED に対応しない環境 (MSVC 19.44 未満・x64 以外など) では configure が Lorica の理由を出して失敗する。
 守りを外して通すことはせず、外すなら `-DMANUS_HARDEN_EXTENDED=OFF` を明示して baseline に戻す (人間の判断)。
+
+開発用の option (どれも既定 OFF・リリースには使わない。Lorica の守りは付いたまま):
+
+- `-DMANUS_SANITIZE=address,undefined` または `-DMANUS_SANITIZE=thread`: 全 Manus ターゲットに sanitizer を付ける
+  (MSVC は `address,undefined` を指定したときに `/fsanitize=address` だけ)。
+- `-DMANUS_BUILD_FUZZERS=ON` (Clang のみ): `native/fuzz/` の libFuzzer の実行ファイル `manus_fuzz_<入口>` を作る。
+  全 Manus ターゲットに `-fsanitize=fuzzer-no-link` を付ける。`MANUS_SANITIZE=address,undefined` と一緒に使う。
+  入口: `ws_message` (WS の 1 メッセージ) `pair_body` (`/api/pair` の本文) `url` (request-target とトークン)
+  `config` (`manus.config.json`) `http_request` (HTTP/1.1 の生のバイト列、受け口と同じ Beast の上限)。
+- 回帰: 同じ入口を `native/fuzz/corpus/<入口>/` の種で 1 回ずつ呼ぶ `manus_fuzz_<入口>_regression` を、どのコンパイラでも
+  ctest (`manus.fuzz.<入口>`) に入れる。
+
+```sh
+cmake -S native -B native/build-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DMANUS_SANITIZE=address,undefined
+cmake -S native -B native/build-fuzz -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DMANUS_SANITIZE=address,undefined -DMANUS_BUILD_FUZZERS=ON
+native/build-fuzz/fuzz/manus_fuzz_ws_message -max_total_time=30 <作業用の corpus> native/fuzz/corpus/ws_message
+```
 
 実行: `native/build/bin/manus [serve] [--root <dir>]` (既定の root は作業ディレクトリ = リポのルート)。
 `set-pin` は `native/build/bin/manus set-pin <4〜10桁の数字>`。Windows 以外では入力を注入できない
