@@ -36,6 +36,10 @@
   `lorica_deprecate_unsafe_apis` を外す → baseline・extended・compile_commands (60 TU を列挙) が落ちる。manus_io に
   `-fcf-protection=none -U_FORTIFY_SOURCE` を足し manus_target() の EXTENDED の呼び出しを外す → compile_commands が落ちる。`manus_core` の SERVER を外す →
   compile_commands が 18 TU を挙げて落ちる。MSVC の枝 (`/GS /sdl /guard:cf /we4996`、EXTENDED の `_MSVC_STL_HARDENING`) は未確認。
+- 追加 (COMMON-5): `lorica_applied_tests.cpp` の probe が Praesidium の文字列の規則 `native.unbounded-copy` に 2 行当たっていたので、
+  名前をマクロ `MANUS_LORICA_PROBE_UNSAFE_NAME(str, cpy)` で綴る書き方に直した (呼ばない probe のまま、確かめる内容は同じ)。規則の実物で検査して
+  このファイルも job の C/C++ 全体も 0 件。GCC RelWithDebInfo -Werror で ctest 25/25。強制 include を外して手でコンパイルすると
+  `unsafe_api_header_is_force_included` が落ちる (4/5) ことを確かめた。MSVC での確認は未確認。
 
 ## (b) 確かめていないこと (本社で行う)
 
