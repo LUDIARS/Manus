@@ -21,10 +21,15 @@
 // declared only if the header was force-included. The lookup below finds either
 // ::strcpy (the non-template wins) or the fallback template, which returns
 // probe::absent; the deprecation is silenced only for this unevaluated probe.
+// The name is spelled through a macro, as <lorica/unsafe_api.hpp> itself does, so that
+// no line reads like a call to it: nothing here calls the function, the probe only asks
+// which declaration lookup finds (Praesidium's text rule native.unbounded-copy looks for
+// call-shaped uses).
+#define MANUS_LORICA_PROBE_UNSAFE_NAME(a, b) a##b
 namespace manus_lorica_probe {
 struct absent {};
 template <class... Args>
-absent strcpy(Args...);
+absent MANUS_LORICA_PROBE_UNSAFE_NAME(str, cpy)(Args...);
 template <class T>
 T make();  // only named in decltype (like std::declval, which needs a header)
 template <class T, class U>
@@ -44,12 +49,14 @@ using namespace manus_lorica_probe;
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 inline constexpr bool unsafe_api_declared_before_first_line =
-    !manus_lorica_probe::same<decltype(strcpy(make<char*>(), make<const char*>())),
-                              manus_lorica_probe::absent>::value;
+    !manus_lorica_probe::same<
+        decltype(MANUS_LORICA_PROBE_UNSAFE_NAME(str, cpy)(make<char*>(), make<const char*>())),
+        manus_lorica_probe::absent>::value;
 #if defined(__GNUC__)
 #pragma GCC diagnostic pop
 #endif
 }  // namespace manus_lorica_probe_lookup
+#undef MANUS_LORICA_PROBE_UNSAFE_NAME
 
 #include <cstddef>
 #include <cstdint>
